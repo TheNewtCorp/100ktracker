@@ -8,12 +8,13 @@ interface LeadColumnProps {
   leads: Lead[];
   contacts: Contact[];
   onCardClick: (lead: Lead) => void;
+  onCardDelete: (lead: Lead) => void;
   onDragEnd: (event: MouseEvent | TouchEvent | PointerEvent, info: any, lead: Lead) => void;
   dragConstraints: React.RefObject<HTMLDivElement>;
 }
 
 const LeadColumn = React.forwardRef<HTMLDivElement, LeadColumnProps>(
-  ({ title, leads, contacts, onCardClick, onDragEnd, dragConstraints }, ref) => {
+  ({ title, leads, contacts, onCardClick, onCardDelete, onDragEnd, dragConstraints }, ref) => {
     return (
       <div ref={ref} className='w-full bg-obsidian-black/50 rounded-xl p-3'>
         <h3 className='text-lg font-bold text-champagne-gold mb-4 px-1'>
@@ -26,6 +27,7 @@ const LeadColumn = React.forwardRef<HTMLDivElement, LeadColumnProps>(
               lead={lead}
               contact={contacts.find((c) => c.id === lead.contactId)}
               onClick={() => onCardClick(lead)}
+              onDelete={() => onCardDelete(lead)}
               onDragEnd={onDragEnd}
               dragConstraints={dragConstraints}
             />

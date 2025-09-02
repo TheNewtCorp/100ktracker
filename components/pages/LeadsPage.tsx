@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react';
 import { Lead, LeadStatus, Contact, ContactType } from '../../types';
 import LeadColumn from './leads/LeadColumn';
 import LeadFormModal from './leads/LeadFormModal';
+import ConfirmDeleteLeadModal from './leads/ConfirmDeleteLeadModal';
 import apiService from '../../services/apiService';
 
 const statusOrder: LeadStatus[] = [
@@ -18,15 +19,20 @@ const statusOrder: LeadStatus[] = [
 
 interface LeadsPageProps {
   onLeadsUpdate: (leads: Lead[]) => void;
+  initialLeadId?: string; // Optional lead ID to auto-open details for
 }
 
-const LeadsPage: React.FC<LeadsPageProps> = ({ onLeadsUpdate }) => {
+const LeadsPage: React.FC<LeadsPageProps> = ({ onLeadsUpdate, initialLeadId }) => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [hasProcessedInitialLead, setHasProcessedInitialLead] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -78,9 +84,24 @@ const LeadsPage: React.FC<LeadsPageProps> = ({ onLeadsUpdate }) => {
     loadData();
   }, [loadData]);
 
+  // Reset the processed flag when initialLeadId changes
+  useEffect(() => {
+    setHasProcessedInitialLead(false);
+  }, [initialLeadId]);
+
   useEffect(() => {
     onLeadsUpdate(leads);
-  }, [leads, onLeadsUpdate]);
+
+    // Auto-open lead details if initialLeadId is provided and lead exists
+    if (initialLeadId && leads.length > 0 && !isModalOpen && !hasProcessedInitialLead) {
+      const leadToOpen = leads.find((lead) => lead.id === initialLeadId);
+      if (leadToOpen) {
+        console.log(`Auto-opening lead details for: "${leadToOpen.title}"`);
+        handleEdit(leadToOpen);
+        setHasProcessedInitialLead(true); // Mark as processed
+      }
+    }
+  }, [leads, onLeadsUpdate, initialLeadId, isModalOpen, hasProcessedInitialLead]);
 
   const handleAddNew = () => {
     setEditingLead(null);
@@ -128,10 +149,39 @@ const LeadsPage: React.FC<LeadsPageProps> = ({ onLeadsUpdate }) => {
     [loadData],
   );
 
+  const handleDeleteLead = useCallback((lead: Lead) => {
+    setLeadToDelete(lead);
+    setDeleteModalOpen(true);
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!leadToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await apiService.deleteLead(leadToDelete.id);
+      await loadData(); // Reload to refresh the leads
+      setDeleteModalOpen(false);
+      setLeadToDelete(null);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete lead');
+      console.error('Failed to delete lead:', err);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [leadToDelete, loadData]);
+
+  const handleCloseDeleteModal = useCallback(() => {
+    if (isDeleting) return;
+    setDeleteModalOpen(false);
+    setLeadToDelete(null);
+  }, [isDeleting]);
+
   const boardRef = useRef<HTMLDivElement>(null);
   const columnRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  const handleDragEnd = useCallback((event: MouseEvent | TouchEvent | PointerEvent, info: any, lead: Lead) => {
+  const handleDragEnd = useCallback(async (event: MouseEvent | TouchEvent | PointerEvent, info: any, lead: Lead) => {
     const point = { x: info.point.x, y: info.point.y };
 
     for (let i = 0; i < statusOrder.length; i++) {
@@ -141,8 +191,32 @@ const LeadsPage: React.FC<LeadsPageProps> = ({ onLeadsUpdate }) => {
         if (point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom) {
           const newStatus = statusOrder[i];
           if (lead.status !== newStatus) {
+            // Optimistically update the UI first
             const updatedLead = { ...lead, status: newStatus };
             setLeads((prev) => prev.map((l) => (l.id === lead.id ? updatedLead : l)));
+
+            try {
+              // Persist the status change to the backend
+              const apiLeadData = {
+                title: lead.title,
+                status: newStatus,
+                contact_id: lead.contactId ? parseInt(lead.contactId) : null,
+                watch_reference: lead.watchReference,
+                reminder_date: lead.reminderDate,
+                notes: lead.notes,
+              };
+
+              await apiService.updateLead(lead.id, apiLeadData);
+              console.log(`Lead "${lead.title}" status updated to "${newStatus}"`);
+            } catch (err: any) {
+              // If the API call fails, revert the optimistic update
+              console.error('Failed to update lead status:', err);
+              setLeads((prev) => prev.map((l) => (l.id === lead.id ? lead : l))); // Revert to original
+              setError(err.message || 'Failed to update lead status');
+
+              // Optional: Show a toast notification or alert
+              setTimeout(() => setError(null), 5000); // Clear error after 5 seconds
+            }
           }
           break;
         }
@@ -196,6 +270,7 @@ const LeadsPage: React.FC<LeadsPageProps> = ({ onLeadsUpdate }) => {
             leads={leads.filter((l) => l.status === status)}
             contacts={contacts}
             onCardClick={handleEdit}
+            onCardDelete={handleDeleteLead}
             onDragEnd={handleDragEnd}
             dragConstraints={boardRef}
             // FIX: The ref callback should not return a value.
@@ -210,10 +285,26 @@ const LeadsPage: React.FC<LeadsPageProps> = ({ onLeadsUpdate }) => {
       <AnimatePresence>
         {isModalOpen && (
           <LeadFormModal
-            onClose={() => setIsModalOpen(false)}
+            onClose={() => {
+              setIsModalOpen(false);
+              setEditingLead(null);
+            }}
             onSave={handleSaveLead}
             lead={editingLead}
             contacts={contacts}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteModalOpen && leadToDelete && (
+          <ConfirmDeleteLeadModal
+            onClose={handleCloseDeleteModal}
+            onConfirm={handleConfirmDelete}
+            lead={leadToDelete}
+            contact={leadToDelete.contactId ? contacts.find((c) => c.id === leadToDelete.contactId) : undefined}
+            isDeleting={isDeleting}
           />
         )}
       </AnimatePresence>
