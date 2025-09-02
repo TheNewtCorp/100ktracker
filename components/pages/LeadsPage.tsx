@@ -188,7 +188,7 @@ const LeadsPage: React.FC<LeadsPageProps> = ({ onLeadsUpdate }) => {
         </button>
       </div>
 
-      <div ref={boardRef} className='flex overflow-x-auto space-x-4 p-2 -mx-2'>
+      <div ref={boardRef} className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-2'>
         {statusOrder.map((status, index) => (
           <LeadColumn
             key={status}

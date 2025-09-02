@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react';
 import { Contact, ContactType, Watch, AssociationRole, WatchAssociation, Card } from '../../types';
 import ContactFormModal from './contact/ContactFormModal';
 import ContactList from './contact/ContactList';
+import ConfirmDeleteContactModal from './contact/ConfirmDeleteContactModal';
 import apiService from '../../services/apiService';
 
 // Placeholder for Stripe invoice creation
@@ -34,6 +35,8 @@ const ContactsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -131,6 +134,32 @@ const ContactsPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const handleDelete = (contact: Contact) => {
+    const fullContactData = linkedContacts.find((c) => c.id === contact.id) || null;
+    setDeletingContact(fullContactData);
+  };
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deletingContact) return;
+
+    setIsDeleting(true);
+    try {
+      await apiService.deleteContact(deletingContact.id);
+      await loadData(); // Reload data to get the updated list
+      setDeletingContact(null);
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete contact');
+      console.error('Failed to delete contact:', err);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [deletingContact, loadData]);
+
+  const handleCancelDelete = () => {
+    setDeletingContact(null);
+    setIsDeleting(false);
+  };
+
   const handleSaveContact = useCallback(
     async (contactData: Omit<Contact, 'id'> | Contact, newAssociations: WatchAssociation[], cards: Card[]) => {
       try {
@@ -219,7 +248,12 @@ const ContactsPage: React.FC = () => {
         </button>
       </div>
 
-      <ContactList contacts={linkedContacts} onEdit={handleEdit} onCreateInvoice={createStripeInvoiceWithContact} />
+      <ContactList
+        contacts={linkedContacts}
+        onEdit={handleEdit}
+        onCreateInvoice={createStripeInvoiceWithContact}
+        onDelete={handleDelete}
+      />
 
       <AnimatePresence>
         {isModalOpen && (
@@ -229,6 +263,17 @@ const ContactsPage: React.FC = () => {
             contact={editingContact}
             watches={watches}
             contacts={contacts}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {deletingContact && (
+          <ConfirmDeleteContactModal
+            contact={deletingContact}
+            onClose={handleCancelDelete}
+            onConfirm={handleConfirmDelete}
+            isDeleting={isDeleting}
           />
         )}
       </AnimatePresence>
