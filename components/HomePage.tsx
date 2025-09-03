@@ -58,6 +58,7 @@ const HomePage: React.FC = () => {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [inventoryUpdateTrigger, setInventoryUpdateTrigger] = useState(0); // Trigger for metrics refresh
 
   const processLeadsForAlerts = useCallback((leadsData: Lead[]) => {
     console.log('HomePage: Processing leads for alerts...', leadsData);
@@ -158,14 +159,25 @@ const HomePage: React.FC = () => {
     }
   }, []);
 
+  const handleInventoryUpdate = useCallback(() => {
+    console.log('HomePage: Inventory updated, triggering metrics refresh');
+    setInventoryUpdateTrigger((prev) => prev + 1);
+  }, []);
+
   const pageElement = useMemo(() => {
     if (!selectedApp) return null;
     const PageComponent = pages[selectedApp.id];
+
     if (selectedApp.id === Tool.Leads) {
       return <PageComponent onLeadsUpdate={handleLeadsUpdate} initialLeadId={selectedLeadId} />;
+    } else if (selectedApp.id === Tool.Inventory) {
+      return <PageComponent onInventoryUpdate={handleInventoryUpdate} />;
+    } else if (selectedApp.id === Tool.Metrics) {
+      return <PageComponent inventoryUpdateTrigger={inventoryUpdateTrigger} />;
     }
+
     return <PageComponent />;
-  }, [selectedApp, handleLeadsUpdate, selectedLeadId]);
+  }, [selectedApp, handleLeadsUpdate, selectedLeadId, handleInventoryUpdate, inventoryUpdateTrigger]);
 
   return (
     <LayoutGroup>

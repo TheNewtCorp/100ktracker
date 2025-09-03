@@ -1,14 +1,19 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Plus, Download } from 'lucide-react';
+import { Plus, Download, Upload } from 'lucide-react';
 import { Watch, WatchSet, Contact, ContactType } from '../../types';
 import WatchFormModal from './inventory/WatchFormModal';
 import WatchList from './inventory/WatchList';
 import AssociationPopover from './inventory/AssociationPopover';
 import ConfirmDeleteModal from './inventory/ConfirmDeleteModal';
+import ImportModal from './inventory/ImportModal';
 import apiService from '../../services/apiService';
 
-const InventoryPage: React.FC = () => {
+interface InventoryPageProps {
+  onInventoryUpdate?: () => void; // Callback to notify when inventory changes
+}
+
+const InventoryPage: React.FC<InventoryPageProps> = ({ onInventoryUpdate }) => {
   const [watches, setWatches] = useState<Watch[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -18,6 +23,7 @@ const InventoryPage: React.FC = () => {
   const [viewingWatchAssociations, setViewingWatchAssociations] = useState<Watch | null>(null);
   const [deletingWatch, setDeletingWatch] = useState<Watch | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -147,13 +153,18 @@ const InventoryPage: React.FC = () => {
       await apiService.deleteWatch(deletingWatch.id);
       await loadData(); // Reload data to get the updated list
       setDeletingWatch(null);
+
+      // Notify that inventory has changed
+      if (onInventoryUpdate) {
+        onInventoryUpdate();
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to delete watch');
       console.error('Failed to delete watch:', err);
     } finally {
       setIsDeleting(false);
     }
-  }, [deletingWatch, loadData]);
+  }, [deletingWatch, loadData, onInventoryUpdate]);
 
   const handleCancelDelete = () => {
     setDeletingWatch(null);
@@ -202,12 +213,74 @@ const InventoryPage: React.FC = () => {
         await loadData();
         setIsModalOpen(false);
         setEditingWatch(null);
+
+        // Notify that inventory has changed
+        if (onInventoryUpdate) {
+          onInventoryUpdate();
+        }
       } catch (err: any) {
         setError(err.message || 'Failed to save watch');
         console.error('Failed to save watch:', err);
       }
     },
-    [loadData],
+    [loadData, onInventoryUpdate],
+  );
+
+  const handleBatchImport = useCallback(
+    async (watches: Omit<Watch, 'id'>[]) => {
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const watchData of watches) {
+        try {
+          // Transform frontend data to API format
+          const apiWatchData = {
+            brand: watchData.brand,
+            model: watchData.model,
+            reference_number: watchData.referenceNumber,
+            in_date: watchData.inDate,
+            serial_number: watchData.serialNumber,
+            watch_set: watchData.watchSet,
+            platform_purchased: watchData.platformPurchased,
+            purchase_price: watchData.purchasePrice,
+            liquidation_price: watchData.liquidationPrice,
+            accessories: watchData.accessories,
+            accessories_cost: watchData.accessoriesCost,
+            date_sold: watchData.dateSold,
+            platform_sold: watchData.platformSold,
+            price_sold: watchData.priceSold,
+            fees: watchData.fees,
+            shipping: watchData.shipping,
+            taxes: watchData.taxes,
+            notes: watchData.notes,
+          };
+
+          await apiService.createWatch(apiWatchData);
+          successCount++;
+        } catch (err: any) {
+          console.error(`Failed to import watch ${watchData.brand} ${watchData.model}:`, err);
+          errorCount++;
+        }
+      }
+
+      console.log(`Import completed: ${successCount} successful, ${errorCount} failed`);
+
+      // Reload data to refresh the inventory
+      await loadData();
+
+      // Notify that inventory has changed
+      if (onInventoryUpdate) {
+        onInventoryUpdate();
+      }
+
+      // Close import modal
+      setIsImportModalOpen(false);
+
+      if (errorCount > 0) {
+        setError(`Import completed with ${errorCount} errors. ${successCount} watches imported successfully.`);
+      }
+    },
+    [loadData, onInventoryUpdate],
   );
 
   const handleExportCSV = () => {
@@ -313,6 +386,13 @@ const InventoryPage: React.FC = () => {
             Export to CSV
           </button>
           <button
+            onClick={() => setIsImportModalOpen(true)}
+            className='flex items-center gap-2 bg-charcoal-slate border border-champagne-gold/50 text-champagne-gold font-bold py-2 px-4 rounded-lg hover:bg-champagne-gold/10 transition-all duration-300'
+          >
+            <Upload size={20} />
+            Import from CSV
+          </button>
+          <button
             onClick={handleAddNew}
             className='flex items-center gap-2 bg-champagne-gold text-obsidian-black font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all duration-300'
           >
@@ -359,6 +439,11 @@ const InventoryPage: React.FC = () => {
             isDeleting={isDeleting}
           />
         )}
+      </AnimatePresence>
+
+      {/* Import Modal */}
+      <AnimatePresence>
+        {isImportModalOpen && <ImportModal onClose={() => setIsImportModalOpen(false)} onImport={handleBatchImport} />}
       </AnimatePresence>
     </div>
   );
