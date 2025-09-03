@@ -1,0 +1,179 @@
+import React from 'react';
+import { Invoice, InvoiceStatus } from '../../../types';
+
+interface InvoiceListProps {
+  invoices: Invoice[];
+  loading: boolean;
+  onCreateNew: () => void;
+  onViewDetails: (invoice: Invoice) => void;
+  onSend: (invoiceId: number) => Promise<void>;
+  onVoid: (invoiceId: number) => Promise<void>;
+  error: string | null;
+}
+
+const InvoiceList: React.FC<InvoiceListProps> = ({
+  invoices,
+  loading,
+  onCreateNew,
+  onViewDetails,
+  onSend,
+  onVoid,
+  error,
+}) => {
+  const getStatusColor = (status: InvoiceStatus): string => {
+    switch (status) {
+      case InvoiceStatus.Paid:
+        return 'text-green-400 bg-green-900/20';
+      case InvoiceStatus.Open:
+        return 'text-yellow-400 bg-yellow-900/20';
+      case InvoiceStatus.Void:
+        return 'text-red-400 bg-red-900/20';
+      case InvoiceStatus.Draft:
+        return 'text-blue-400 bg-blue-900/20';
+      case InvoiceStatus.Uncollectible:
+        return 'text-gray-400 bg-gray-900/20';
+      default:
+        return 'text-platinum-silver/60 bg-platinum-silver/10';
+    }
+  };
+
+  const formatCurrency = (amount: number, currency: string = 'USD'): string => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string): string => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const handleActionClick = async (action: 'send' | 'void', invoiceId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (action === 'send') {
+        await onSend(invoiceId);
+      } else {
+        await onVoid(invoiceId);
+      }
+    } catch (error) {
+      // Error handling is managed by parent component
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className='flex items-center justify-center py-12'>
+        <div className='text-platinum-silver/60'>Loading invoices...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className='space-y-6'>
+      {/* Header with Create Button */}
+      <div className='flex justify-between items-center'>
+        <div>
+          <h2 className='text-xl font-semibold text-platinum-silver'>All Invoices</h2>
+          <p className='text-platinum-silver/60 text-sm mt-1'>
+            {invoices.length} invoice{invoices.length !== 1 ? 's' : ''} total
+          </p>
+        </div>
+        <button
+          onClick={onCreateNew}
+          className='bg-champagne-gold hover:bg-champagne-gold/80 text-rich-black font-medium px-4 py-2 rounded-lg transition-colors'
+        >
+          Create Invoice
+        </button>
+      </div>
+
+      {/* Invoices List */}
+      {invoices.length === 0 ? (
+        <div className='text-center py-12'>
+          <div className='text-platinum-silver/40 mb-4'>No invoices found</div>
+          <button onClick={onCreateNew} className='text-champagne-gold hover:text-champagne-gold/80 transition-colors'>
+            Create your first invoice
+          </button>
+        </div>
+      ) : (
+        <div className='bg-rich-black/60 rounded-lg overflow-hidden'>
+          <div className='overflow-x-auto'>
+            <table className='w-full'>
+              <thead className='bg-rich-black/40 border-b border-platinum-silver/10'>
+                <tr>
+                  <th className='text-left py-3 px-4 text-platinum-silver/80 font-medium'>Customer</th>
+                  <th className='text-left py-3 px-4 text-platinum-silver/80 font-medium'>Status</th>
+                  <th className='text-right py-3 px-4 text-platinum-silver/80 font-medium'>Amount</th>
+                  <th className='text-left py-3 px-4 text-platinum-silver/80 font-medium'>Created</th>
+                  <th className='text-left py-3 px-4 text-platinum-silver/80 font-medium'>Due Date</th>
+                  <th className='text-center py-3 px-4 text-platinum-silver/80 font-medium'>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map((invoice) => (
+                  <tr
+                    key={invoice.id}
+                    onClick={() => onViewDetails(invoice)}
+                    className='border-b border-platinum-silver/5 hover:bg-platinum-silver/5 cursor-pointer transition-colors'
+                  >
+                    <td className='py-3 px-4'>
+                      <div>
+                        <div className='text-platinum-silver font-medium'>
+                          {invoice.contact_name || 'Unknown Customer'}
+                        </div>
+                        <div className='text-platinum-silver/60 text-sm'>{invoice.contact_email}</div>
+                      </div>
+                    </td>
+                    <td className='py-3 px-4'>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(invoice.status)}`}>
+                        {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+                      </span>
+                    </td>
+                    <td className='py-3 px-4 text-right text-platinum-silver font-mono'>
+                      {formatCurrency(invoice.total_amount, invoice.currency)}
+                    </td>
+                    <td className='py-3 px-4 text-platinum-silver/80'>{formatDate(invoice.created_at)}</td>
+                    <td className='py-3 px-4 text-platinum-silver/80'>
+                      {invoice.due_date ? formatDate(invoice.due_date) : '-'}
+                    </td>
+                    <td className='py-3 px-4'>
+                      <div className='flex justify-center space-x-2'>
+                        {(invoice.status === InvoiceStatus.Draft || invoice.status === InvoiceStatus.Open) && (
+                          <button
+                            onClick={(e) => handleActionClick('send', invoice.id, e)}
+                            className='text-blue-400 hover:text-blue-300 text-sm transition-colors'
+                            title='Send Invoice'
+                          >
+                            Send
+                          </button>
+                        )}
+                        {(invoice.status === InvoiceStatus.Draft || invoice.status === InvoiceStatus.Open) && (
+                          <button
+                            onClick={(e) => handleActionClick('void', invoice.id, e)}
+                            className='text-red-400 hover:text-red-300 text-sm transition-colors'
+                            title='Void Invoice'
+                          >
+                            Void
+                          </button>
+                        )}
+                        {(invoice.status === InvoiceStatus.Paid || invoice.status === InvoiceStatus.Void) && (
+                          <span className='text-platinum-silver/40 text-sm'>-</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default InvoiceList;

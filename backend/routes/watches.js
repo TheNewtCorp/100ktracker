@@ -1,7 +1,7 @@
 // Watches CRUD routes with authentication
 const express = require('express');
 const router = express.Router();
-const { getUserWatches, createUserWatch, updateUserWatch, deleteUserWatch } = require('../db');
+const { getUserWatches, createUserWatch, updateUserWatch, deleteUserWatch, bulkDeleteUserWatches } = require('../db');
 
 // Middleware to verify JWT (imported from auth.js)
 function authenticateJWT(req, res, next) {
@@ -103,6 +103,58 @@ router.get('/', authenticateJWT, (req, res) => {
         totalPages: Math.ceil(filteredWatches.length / limit),
       },
     });
+  });
+});
+
+// POST /api/watches/bulk-delete - Delete multiple watches (MUST come before /:id route)
+router.post('/bulk-delete', authenticateJWT, (req, res) => {
+  console.log('Bulk delete endpoint hit with body:', req.body);
+  const { watchIds } = req.body;
+
+  if (!watchIds || !Array.isArray(watchIds) || watchIds.length === 0) {
+    console.log('Invalid watchIds:', watchIds);
+    return res.status(400).json({ error: 'watchIds must be a non-empty array' });
+  }
+
+  // Validate that all IDs are valid integers
+  const validIds = watchIds.filter((id) => {
+    const num = parseInt(id);
+    return !isNaN(num) && num > 0;
+  });
+
+  if (validIds.length !== watchIds.length) {
+    console.log('Invalid IDs found:', watchIds, 'Valid IDs:', validIds);
+    return res.status(400).json({ error: 'All watch IDs must be valid positive integers' });
+  }
+
+  console.log('Attempting to delete watches for user:', req.user.id, 'IDs:', validIds);
+
+  bulkDeleteUserWatches(req.user.id, validIds, function (err) {
+    if (err) {
+      console.error('Database error during bulk delete:', err);
+      return res.status(500).json({ error: 'Failed to delete watches' });
+    }
+
+    const deletedCount = this.changes;
+    console.log('Successfully deleted', deletedCount, 'watches');
+    res.json({
+      message: `Successfully deleted ${deletedCount} watch(es)`,
+      deletedCount: deletedCount,
+    });
+  });
+});
+
+// POST /api/watches - Create new watch
+router.post('/', authenticateJWT, validateWatch, (req, res) => {
+  createUserWatch(req.user.id, req.body, function (err) {
+    if (err) {
+      console.error('Database error:', err);
+      return res.status(500).json({ error: 'Failed to create watch' });
+    }
+
+    // Return the created watch with the new ID
+    const newWatch = { id: this.lastID, ...req.body };
+    res.status(201).json(newWatch);
   });
 });
 

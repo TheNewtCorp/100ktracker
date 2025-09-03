@@ -6,6 +6,7 @@ import WatchFormModal from './inventory/WatchFormModal';
 import WatchList from './inventory/WatchList';
 import AssociationPopover from './inventory/AssociationPopover';
 import ConfirmDeleteModal from './inventory/ConfirmDeleteModal';
+import BulkDeleteModal from './inventory/BulkDeleteModal';
 import ImportModal from './inventory/ImportModal';
 import apiService from '../../services/apiService';
 
@@ -22,7 +23,9 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onInventoryUpdate }) => {
   const [editingWatch, setEditingWatch] = useState<Watch | null>(null);
   const [viewingWatchAssociations, setViewingWatchAssociations] = useState<Watch | null>(null);
   const [deletingWatch, setDeletingWatch] = useState<Watch | null>(null);
+  const [bulkDeletingWatches, setBulkDeletingWatches] = useState<Watch[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -145,6 +148,11 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onInventoryUpdate }) => {
     setDeletingWatch(watch);
   };
 
+  const handleBulkDelete = (watchIds: string[]) => {
+    const watchesToDelete = processedWatches.filter((w) => watchIds.includes(w.id));
+    setBulkDeletingWatches(watchesToDelete);
+  };
+
   const handleConfirmDelete = useCallback(async () => {
     if (!deletingWatch) return;
 
@@ -169,6 +177,33 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onInventoryUpdate }) => {
   const handleCancelDelete = () => {
     setDeletingWatch(null);
     setIsDeleting(false);
+  };
+
+  const handleConfirmBulkDelete = useCallback(async () => {
+    if (bulkDeletingWatches.length === 0) return;
+
+    setIsBulkDeleting(true);
+    try {
+      const watchIds = bulkDeletingWatches.map((w) => w.id);
+      await apiService.bulkDeleteWatches(watchIds);
+      await loadData(); // Reload data to get the updated list
+      setBulkDeletingWatches([]);
+
+      // Notify that inventory has changed
+      if (onInventoryUpdate) {
+        onInventoryUpdate();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete watches');
+      console.error('Failed to delete watches:', err);
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  }, [bulkDeletingWatches, loadData, onInventoryUpdate]);
+
+  const handleCancelBulkDelete = () => {
+    setBulkDeletingWatches([]);
+    setIsBulkDeleting(false);
   };
 
   const handleSaveWatch = useCallback(
@@ -407,6 +442,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onInventoryUpdate }) => {
         onEdit={handleEdit}
         onShowAssociations={setViewingWatchAssociations}
         onDelete={handleDelete}
+        onBulkDelete={handleBulkDelete}
       />
 
       <AnimatePresence>
@@ -437,6 +473,17 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onInventoryUpdate }) => {
             onClose={handleCancelDelete}
             onConfirm={handleConfirmDelete}
             isDeleting={isDeleting}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {bulkDeletingWatches.length > 0 && (
+          <BulkDeleteModal
+            watches={bulkDeletingWatches}
+            onClose={handleCancelBulkDelete}
+            onConfirm={handleConfirmBulkDelete}
+            isDeleting={isBulkDeleting}
           />
         )}
       </AnimatePresence>

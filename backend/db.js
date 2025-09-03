@@ -176,6 +176,26 @@ function deleteUserWatch(userId, watchId, callback) {
   db.run('DELETE FROM user_watches WHERE id = ? AND user_id = ?', [watchId, userId], callback);
 }
 
+function bulkDeleteUserWatches(userId, watchIds, callback) {
+  if (!Array.isArray(watchIds) || watchIds.length === 0) {
+    return callback(new Error('Watch IDs must be a non-empty array'));
+  }
+
+  console.log('bulkDeleteUserWatches called with:', { userId, watchIds });
+
+  // Create placeholders for the IN clause
+  const placeholders = watchIds.map(() => '?').join(',');
+  const query = `DELETE FROM user_watches WHERE id IN (${placeholders}) AND user_id = ?`;
+
+  // Parameters: all watchIds + userId at the end
+  const params = [...watchIds, userId];
+
+  console.log('Executing query:', query);
+  console.log('With parameters:', params);
+
+  db.run(query, params, callback);
+}
+
 // Contacts
 function getUserContacts(userId, callback) {
   db.all('SELECT * FROM user_contacts WHERE user_id = ? ORDER BY first_name, last_name', [userId], callback);
@@ -345,6 +365,7 @@ module.exports = {
   createUserWatch,
   updateUserWatch,
   deleteUserWatch,
+  bulkDeleteUserWatches,
   // Contacts
   getUserContacts,
   createUserContact,

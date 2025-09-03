@@ -56,6 +56,36 @@ class ApiService {
     }
   }
 
+  // Generic HTTP methods
+  async get(endpoint: string) {
+    return await this.request(endpoint, { method: 'GET' });
+  }
+
+  async post(endpoint: string, data?: any) {
+    return await this.request(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async put(endpoint: string, data?: any) {
+    return await this.request(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async patch(endpoint: string, data?: any) {
+    return await this.request(endpoint, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async delete(endpoint: string) {
+    return await this.request(endpoint, { method: 'DELETE' });
+  }
+
   // Auth API
   async login(username: string, password: string) {
     const response = await this.request('/login', {
@@ -117,6 +147,13 @@ class ApiService {
   async deleteWatch(id: string) {
     return await this.request(`/watches/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  async bulkDeleteWatches(watchIds: string[]) {
+    return await this.request('/watches/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ watchIds }),
     });
   }
 

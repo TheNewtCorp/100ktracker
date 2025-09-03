@@ -18,7 +18,7 @@ export enum ContactType {
   Lead = 'Lead',
   Customer = 'Customer',
   WatchTrader = 'Watch Trader',
-  Jeweler = 'Jeweler'
+  Jeweler = 'Jeweler',
 }
 
 export enum AssociationRole {
@@ -30,7 +30,7 @@ export enum WatchSet {
   WatchOnly = 'Watch Only',
   WatchAndBox = 'Watch & Box',
   WatchAndPapers = 'Watch & Papers',
-  FullSet = 'Full Set'
+  FullSet = 'Full Set',
 }
 
 export enum LeadStatus {
@@ -54,19 +54,18 @@ export interface Lead {
 }
 
 export interface Alert {
-    id: string; // can be leadId
-    leadTitle: string;
-    message: string;
-    dueDate: string; // YYYY-MM-DD
+  id: string; // can be leadId
+  leadTitle: string;
+  message: string;
+  dueDate: string; // YYYY-MM-DD
 }
-
 
 export interface Watch {
   id: string;
   brand: string;
   model: string;
   referenceNumber: string;
-  
+
   // Inventory Fields
   inDate?: string; // YYYY-MM-DD
   serialNumber?: string;
@@ -83,7 +82,7 @@ export interface Watch {
   shipping?: number;
   taxes?: number;
   notes?: string;
-  
+
   // Calculated Fields (non-editable by user in form)
   totalIn?: number;
   netProfit?: number;
@@ -127,4 +126,42 @@ export interface Contact {
   notes?: string;
   watchAssociations?: WatchAssociation[];
   cards?: Card[];
+  stripe_customer_id?: string;
+}
+
+export enum InvoiceStatus {
+  Draft = 'draft',
+  Open = 'open',
+  Paid = 'paid',
+  Void = 'void',
+  Uncollectible = 'uncollectible',
+}
+
+export interface InvoiceItem {
+  id?: number;
+  watch_id: number;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total_amount: number;
+}
+
+export interface Invoice {
+  id: number;
+  stripe_invoice_id: string;
+  contact_id: number;
+  status: InvoiceStatus;
+  total_amount: number;
+  currency: string;
+  due_date?: string;
+  notes?: string;
+  created_at: string;
+  contact_name?: string;
+  contact_email?: string;
+  items?: InvoiceItem[];
+  stripe_details?: {
+    hosted_invoice_url?: string;
+    invoice_pdf?: string;
+    payment_intent?: string;
+  };
 }

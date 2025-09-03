@@ -66,6 +66,7 @@ function createUserContactsTable() {
       website TEXT,
       time_zone TEXT,
       notes TEXT,
+      stripe_customer_id TEXT, -- Stripe customer ID for invoicing
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
@@ -127,6 +128,57 @@ function createUserCardsTable() {
   });
 }
 
+function createUserInvoicesTable() {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `CREATE TABLE IF NOT EXISTS user_invoices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      stripe_invoice_id TEXT UNIQUE NOT NULL,
+      contact_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft', -- draft, open, paid, void, uncollectible
+      total_amount REAL NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'usd',
+      due_date TEXT, -- YYYY-MM-DD
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+      FOREIGN KEY (contact_id) REFERENCES user_contacts (id) ON DELETE CASCADE
+    )`,
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      },
+    );
+  });
+}
+
+function createUserInvoiceItemsTable() {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `CREATE TABLE IF NOT EXISTS user_invoice_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      invoice_id INTEGER NOT NULL,
+      watch_id INTEGER,
+      description TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      unit_price REAL NOT NULL DEFAULT 0,
+      total_amount REAL NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+      FOREIGN KEY (invoice_id) REFERENCES user_invoices (id) ON DELETE CASCADE,
+      FOREIGN KEY (watch_id) REFERENCES user_watches (id) ON DELETE SET NULL
+    )`,
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      },
+    );
+  });
+}
+
 function createIndexes() {
   return new Promise((resolve, reject) => {
     const indexes = [
@@ -141,6 +193,13 @@ function createIndexes() {
       'CREATE INDEX IF NOT EXISTS idx_user_leads_reminder ON user_leads (reminder_date)',
       'CREATE INDEX IF NOT EXISTS idx_user_cards_user_id ON user_cards (user_id)',
       'CREATE INDEX IF NOT EXISTS idx_user_cards_contact_id ON user_cards (contact_id)',
+      'CREATE INDEX IF NOT EXISTS idx_user_invoices_user_id ON user_invoices (user_id)',
+      'CREATE INDEX IF NOT EXISTS idx_user_invoices_contact_id ON user_invoices (contact_id)',
+      'CREATE INDEX IF NOT EXISTS idx_user_invoices_status ON user_invoices (status)',
+      'CREATE INDEX IF NOT EXISTS idx_user_invoices_stripe_id ON user_invoices (stripe_invoice_id)',
+      'CREATE INDEX IF NOT EXISTS idx_user_invoice_items_user_id ON user_invoice_items (user_id)',
+      'CREATE INDEX IF NOT EXISTS idx_user_invoice_items_invoice_id ON user_invoice_items (invoice_id)',
+      'CREATE INDEX IF NOT EXISTS idx_user_invoice_items_watch_id ON user_invoice_items (watch_id)',
     ];
 
     let completed = 0;
@@ -386,6 +445,12 @@ async function runMigrations() {
 
     await createUserCardsTable();
     console.log('✓ Created user_cards table');
+
+    await createUserInvoicesTable();
+    console.log('✓ Created user_invoices table');
+
+    await createUserInvoiceItemsTable();
+    console.log('✓ Created user_invoice_items table');
 
     await createIndexes();
     console.log('✓ Created indexes');
