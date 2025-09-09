@@ -19,7 +19,34 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(helmet());
-app.use(cors());
+
+// Configure CORS for production
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    const allowedOrigins = [
+      'http://localhost:5173', // Vite dev server
+      'http://localhost:4173', // Vite preview
+      'http://localhost:3000', // Alternative dev server
+      'https://100ktracker.netlify.app', // Production frontend
+      'https://netlify.app', // Netlify preview deployments
+    ];
+
+    // Allow Netlify preview deployments (they have random subdomains)
+    if (origin.includes('netlify.app') || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
 
 // Webhook routes need raw body parsing, so add them before express.json()
 app.use('/api/webhooks', webhookRoutes);
@@ -45,6 +72,39 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
   });
+});
+
+// Debug endpoints for production troubleshooting
+app.get('/api/env-check', (req, res) => {
+  res.json({
+    nodeEnv: process.env.NODE_ENV,
+    port: process.env.PORT,
+    hasJwtSecret: !!process.env.JWT_SECRET,
+    appUrl: process.env.APP_URL,
+    databasePath: process.env.DATABASE_PATH,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/api/db-status', (req, res) => {
+  try {
+    const dbPath = process.env.DATABASE_PATH || './db/database.sqlite';
+    const fs = require('fs');
+    const dbExists = fs.existsSync(dbPath);
+
+    res.json({
+      databasePath: dbPath,
+      databaseExists: dbExists,
+      canWrite: fs.constants ? true : false, // Basic write check
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Database status check failed',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 // Global error handler
