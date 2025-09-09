@@ -3,7 +3,8 @@ const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const path = require('path');
 
-const dbPath = path.join(__dirname, 'db', 'users.sqlite');
+// Use environment variable for database path, or default for development
+const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'db', 'users.sqlite');
 const db = new sqlite3.Database(dbPath);
 
 // Create users table if not exists

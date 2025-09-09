@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
+const { initDB } = require('./db');
 const authRoutes = require('./auth');
 const watchRoutes = require('./routes/watches');
 const contactRoutes = require('./routes/contacts');
@@ -10,6 +11,9 @@ const leadRoutes = require('./routes/leads');
 const invoiceRoutes = require('./routes/invoices-safe'); // Safe version without Stripe
 const accountRoutes = require('./routes/account');
 const webhookRoutes = require('./routes/webhooks'); // Step 5: Webhook integration
+
+// Initialize database
+initDB();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -32,6 +36,15 @@ app.use('/api/account', accountRoutes);
 
 app.get('/', (req, res) => {
   res.send('100KTracker backend running');
+});
+
+// Health check endpoint for deployment monitoring
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
 });
 
 // Global error handler

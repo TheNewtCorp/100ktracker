@@ -1,0 +1,105 @@
+node_modules
+npm-debug.log
+.npm
+.nyc_output
+coverage
+.grunt
+lib-cov
+_.seed
+_.log
+_.csv
+_.dat
+_.out
+_.pid
+_.gz
+_.swp
+
+pids
+logs
+results
+tmp
+
+# Build dependencies
+
+.sass-cache
+bower_components
+
+# Coverage directory used by tools like istanbul
+
+coverage
+
+# nyc test coverage
+
+.nyc_output
+
+# Grunt intermediate storage (http://gruntjs.com/creating-plugins#storing-task-files)
+
+.grunt
+
+# node-waf configuration
+
+.lock-wscript
+
+# Compiled binary addons (http://nodejs.org/api/addons.html)
+
+build/Release
+
+# Dependency directories
+
+jspm_packages/
+
+# Optional npm cache directory
+
+.npm
+
+# Optional eslint cache
+
+.eslintcache
+
+# Optional REPL history
+
+.node_repl_history
+
+# Output of 'npm pack'
+
+\*.tgz
+
+# Yarn Integrity file
+
+.yarn-integrity
+
+# dotenv environment variables file
+
+.env
+
+# Development files
+
+_.md
+.git
+.gitignore
+README.md
+USER_MANAGEMENT_PHASE_.md
+test-_.js
+cleanup-_.js
+add-_.js
+list-users.js
+check-_.js
+_.test.js
+_.spec.js
+
+# IDE files
+
+.vscode
+.idea
+_.swp
+_.swo
+
+# OS generated files
+
+.DS*Store
+.DS_Store?
+.*\*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

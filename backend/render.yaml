@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: 100ktracker-backend
+    env: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_PATH
+        value: ./db/database.sqlite
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: 100ktracker-data
+      mountPath: /app/db
+      sizeGB: 1
