@@ -7,13 +7,13 @@ const fs = require('fs');
 // Database connection variable (initialized later)
 let db = null;
 
-// Use environment variable for database path, or default for development
-const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'db', 'users.sqlite');
-
 // Create users table if not exists
 function initDB() {
   return new Promise((resolve, reject) => {
     try {
+      // Resolve database path at runtime when environment variables are available
+      const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'db', 'users.sqlite');
+
       console.log('Initializing database...');
       console.log(`Using database path: ${dbPath}`);
 

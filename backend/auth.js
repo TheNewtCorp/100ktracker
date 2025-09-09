@@ -1,12 +1,10 @@
 // Express routes for login and registration
 const express = require('express');
 const router = express.Router();
-const { initDB, addUser, findUser, verifyPassword } = require('./db');
+const { addUser, findUser, verifyPassword } = require('./db');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
-
-initDB();
 
 // Registration endpoint (temporarily enabled for testing)
 router.post('/register', (req, res) => {
