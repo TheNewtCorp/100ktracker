@@ -4,71 +4,95 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 
+// Database connection variable (initialized later)
+let db = null;
+
 // Use environment variable for database path, or default for development
 const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'db', 'users.sqlite');
 
-// Ensure database directory exists
-const dbDir = path.dirname(dbPath);
-if (!fs.existsSync(dbDir)) {
-  console.log(`Creating database directory: ${dbDir}`);
-  fs.mkdirSync(dbDir, { recursive: true });
-}
-
-console.log(`Using database path: ${dbPath}`);
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error opening database:', err.message);
-  } else {
-    console.log('Connected to SQLite database');
-  }
-});
-
 // Create users table if not exists
 function initDB() {
-  console.log('Initializing database...');
+  return new Promise((resolve, reject) => {
+    try {
+      console.log('Initializing database...');
+      console.log(`Using database path: ${dbPath}`);
 
-  db.run(
-    `CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    hashed_password TEXT NOT NULL,
-    email TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`,
-    (err) => {
-      if (err) {
-        console.error('Error creating users table:', err.message);
-        return;
+      // Ensure database directory exists
+      const dbDir = path.dirname(dbPath);
+      if (!fs.existsSync(dbDir)) {
+        console.log(`Creating database directory: ${dbDir}`);
+        fs.mkdirSync(dbDir, { recursive: true });
       }
-      console.log('Users table created/verified');
 
-      // Insert default admin user if not exists
-      db.get('SELECT * FROM users WHERE username = ?', ['admin'], (err, user) => {
+      // Create database connection only when needed
+      db = new sqlite3.Database(dbPath, (err) => {
         if (err) {
-          console.error('Error checking for admin user:', err.message);
+          console.error('Error opening database:', err.message);
+          reject(err);
           return;
         }
+        console.log('Connected to SQLite database');
 
-        if (!user) {
-          console.log('Creating default admin user...');
-          const hashed = bcrypt.hashSync('password', 10);
-          db.run(
-            'INSERT INTO users (username, hashed_password, email) VALUES (?, ?, ?)',
-            ['admin', hashed, 'admin@example.com'],
-            (err) => {
-              if (err) {
-                console.error('Error creating admin user:', err.message);
-              } else {
-                console.log('Default admin user created');
-              }
-            },
-          );
-        } else {
-          console.log('Admin user already exists');
-        }
+        // Create users table
+        createUserTable().then(resolve).catch(reject);
       });
-    },
-  );
+    } catch (error) {
+      console.error('Database initialization failed:', error);
+      reject(error);
+    }
+  });
+}
+
+function createUserTable() {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      hashed_password TEXT NOT NULL,
+      email TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+      (err) => {
+        if (err) {
+          console.error('Error creating users table:', err.message);
+          reject(err);
+          return;
+        }
+        console.log('Users table created/verified');
+
+        // Insert default admin user if not exists
+        db.get('SELECT * FROM users WHERE username = ?', ['admin'], (err, user) => {
+          if (err) {
+            console.error('Error checking for admin user:', err.message);
+            reject(err);
+            return;
+          }
+
+          if (!user) {
+            console.log('Creating default admin user...');
+            const hashed = bcrypt.hashSync('password', 10);
+            db.run(
+              'INSERT INTO users (username, hashed_password, email) VALUES (?, ?, ?)',
+              ['admin', hashed, 'admin@example.com'],
+              (err) => {
+                if (err) {
+                  console.error('Error creating admin user:', err.message);
+                  reject(err);
+                } else {
+                  console.log('Default admin user created');
+                  resolve();
+                }
+              },
+            );
+          } else {
+            console.log('Admin user already exists');
+            resolve();
+          }
+        });
+      },
+    );
+  });
 }
 
 // Add a new user (registration)

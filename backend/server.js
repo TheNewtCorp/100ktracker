@@ -1,5 +1,14 @@
 // Main Express server setup
 require('dotenv').config();
+
+// Log environment variables for debugging (in production)
+console.log('Environment check:');
+console.log('- NODE_ENV:', process.env.NODE_ENV || 'not set');
+console.log('- PORT:', process.env.PORT || 'not set (will use default)');
+console.log('- DATABASE_PATH:', process.env.DATABASE_PATH || 'not set (will use default)');
+console.log('- APP_URL:', process.env.APP_URL || 'not set');
+console.log('- JWT_SECRET:', process.env.JWT_SECRET ? 'set' : 'not set');
+
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -21,13 +30,39 @@ console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 console.log(`Database path: ${process.env.DATABASE_PATH || 'default'}`);
 
 // Initialize database after creating the app
-try {
-  initDB();
-  console.log('Database initialized successfully');
-} catch (error) {
-  console.error('Database initialization failed:', error);
-  // Don't exit, let the server start and handle DB errors gracefully
+async function startServer() {
+  try {
+    await initDB();
+    console.log('Database initialized successfully');
+
+    const server = app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+
+    // Graceful shutdown handling
+    process.on('SIGTERM', () => {
+      console.log('SIGTERM received, shutting down gracefully');
+      server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    });
+
+    process.on('SIGINT', () => {
+      console.log('SIGINT received, shutting down gracefully');
+      server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
 }
+
+// Start the server
+startServer();
 
 app.use(helmet());
 
@@ -122,25 +157,4 @@ app.get('/api/db-status', (req, res) => {
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
-});
-
-const server = app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
-// Graceful shutdown handling
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
 });
