@@ -10,10 +10,14 @@ router.get('/profile', authenticateJWT, async (req, res) => {
     const userId = req.user.id;
 
     const user = await new Promise((resolve, reject) => {
-      db.get('SELECT id, username, email, created_at FROM users WHERE id = ?', [userId], (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
+      db.get(
+        'SELECT id, username, email, created_at, status, temporary_password, first_login_at FROM users WHERE id = ?',
+        [userId],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        },
+      );
     });
 
     if (!user) {
@@ -25,6 +29,9 @@ router.get('/profile', authenticateJWT, async (req, res) => {
       username: user.username,
       email: user.email || '',
       createdAt: user.created_at,
+      status: user.status,
+      temporaryPassword: !!user.temporary_password,
+      firstLogin: !user.first_login_at,
     });
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -93,12 +100,16 @@ router.put('/password', authenticateJWT, async (req, res) => {
     const saltRounds = 10;
     const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
 
-    // Update password
+    // Update password and clear temporary password flag
     await new Promise((resolve, reject) => {
-      db.run('UPDATE users SET hashed_password = ? WHERE id = ?', [hashedNewPassword, userId], function (err) {
-        if (err) reject(err);
-        else resolve();
-      });
+      db.run(
+        'UPDATE users SET hashed_password = ?, temporary_password = 0 WHERE id = ?',
+        [hashedNewPassword, userId],
+        function (err) {
+          if (err) reject(err);
+          else resolve();
+        },
+      );
     });
 
     res.json({ message: 'Password changed successfully' });

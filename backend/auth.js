@@ -12,11 +12,11 @@ initDB();
 router.post('/register', (req, res) => {
   const { username, password, email } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Missing username or password' });
-  
+
   // Check if user already exists
   findUser(username, (err, existingUser) => {
     if (existingUser) return res.status(400).json({ error: 'Username already exists' });
-    
+
     // Create new user
     addUser(username, password, email, (err, userId) => {
       if (err) return res.status(500).json({ error: 'Failed to create user' });
@@ -25,16 +25,54 @@ router.post('/register', (req, res) => {
   });
 });
 
-// Login endpoint
+// Login endpoint with enhanced user management
 router.post('/login', (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Missing fields' });
-  findUser(username, (err, user) => {
+
+  // Enhanced user lookup with all fields
+  const { db } = require('./db');
+  db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
     if (err || !user) return res.status(401).json({ error: 'Invalid credentials' });
+
+    // Check if user is suspended
+    if (user.status === 'suspended') {
+      return res.status(403).json({ error: 'Account suspended. Contact administrator.' });
+    }
+
     if (!verifyPassword(user, password)) return res.status(401).json({ error: 'Invalid credentials' });
-    // Issue JWT
-    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '1d' });
-    res.json({ token });
+
+    // Update first login timestamp if this is their first login
+    if (!user.first_login_at) {
+      db.run('UPDATE users SET first_login_at = CURRENT_TIMESTAMP WHERE id = ?', [user.id], (err) => {
+        if (err) console.error('Failed to update first login timestamp:', err);
+      });
+    }
+
+    // Update status from pending to active on first successful login
+    if (user.status === 'pending') {
+      db.run('UPDATE users SET status = "active" WHERE id = ?', [user.id], (err) => {
+        if (err) console.error('Failed to update user status:', err);
+      });
+    }
+
+    // Issue JWT with additional user info
+    const token = jwt.sign(
+      {
+        id: user.id,
+        username: user.username,
+        status: user.status === 'pending' ? 'active' : user.status, // Use updated status
+      },
+      JWT_SECRET,
+      { expiresIn: '1d' },
+    );
+
+    res.json({
+      token,
+      temporaryPassword: !!user.temporary_password,
+      firstLogin: !user.first_login_at,
+      status: user.status === 'pending' ? 'active' : user.status,
+    });
   });
 });
 
