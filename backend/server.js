@@ -12,11 +12,22 @@ const invoiceRoutes = require('./routes/invoices-safe'); // Safe version without
 const accountRoutes = require('./routes/account');
 const webhookRoutes = require('./routes/webhooks'); // Step 5: Webhook integration
 
-// Initialize database
-initDB();
-
 const app = express();
-const PORT = process.env.PORT || 4000;
+// Render assigns PORT automatically for web services, fallback to 3001 for local dev
+const PORT = process.env.PORT || 3001;
+
+console.log(`Starting server on port ${PORT}`);
+console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log(`Database path: ${process.env.DATABASE_PATH || 'default'}`);
+
+// Initialize database after creating the app
+try {
+  initDB();
+  console.log('Database initialized successfully');
+} catch (error) {
+  console.error('Database initialization failed:', error);
+  // Don't exit, let the server start and handle DB errors gracefully
+}
 
 app.use(helmet());
 
@@ -113,6 +124,23 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
 });

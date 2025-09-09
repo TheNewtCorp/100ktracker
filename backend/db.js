@@ -2,13 +2,31 @@
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const path = require('path');
+const fs = require('fs');
 
 // Use environment variable for database path, or default for development
 const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'db', 'users.sqlite');
-const db = new sqlite3.Database(dbPath);
+
+// Ensure database directory exists
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  console.log(`Creating database directory: ${dbDir}`);
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
+console.log(`Using database path: ${dbPath}`);
+const db = new sqlite3.Database(dbPath, (err) => {
+  if (err) {
+    console.error('Error opening database:', err.message);
+  } else {
+    console.log('Connected to SQLite database');
+  }
+});
 
 // Create users table if not exists
 function initDB() {
+  console.log('Initializing database...');
+
   db.run(
     `CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -17,16 +35,36 @@ function initDB() {
     email TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
-    () => {
+    (err) => {
+      if (err) {
+        console.error('Error creating users table:', err.message);
+        return;
+      }
+      console.log('Users table created/verified');
+
       // Insert default admin user if not exists
       db.get('SELECT * FROM users WHERE username = ?', ['admin'], (err, user) => {
+        if (err) {
+          console.error('Error checking for admin user:', err.message);
+          return;
+        }
+
         if (!user) {
+          console.log('Creating default admin user...');
           const hashed = bcrypt.hashSync('password', 10);
-          db.run('INSERT INTO users (username, hashed_password, email) VALUES (?, ?, ?)', [
-            'admin',
-            hashed,
-            'admin@example.com',
-          ]);
+          db.run(
+            'INSERT INTO users (username, hashed_password, email) VALUES (?, ?, ?)',
+            ['admin', hashed, 'admin@example.com'],
+            (err) => {
+              if (err) {
+                console.error('Error creating admin user:', err.message);
+              } else {
+                console.log('Default admin user created');
+              }
+            },
+          );
+        } else {
+          console.log('Admin user already exists');
         }
       });
     },

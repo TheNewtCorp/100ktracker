@@ -8,12 +8,12 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3001
       - key: JWT_SECRET
         generateValue: true
       - key: DATABASE_PATH
-        value: ./db/database.sqlite
+        value: /app/db/database.sqlite
+      - key: APP_URL
+        value: https://100ktracker.netlify.app
     healthCheckPath: /health
     autoDeploy: true
     disk:
