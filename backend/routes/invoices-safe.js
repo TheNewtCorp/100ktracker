@@ -69,7 +69,7 @@ router.get('/stripe-config', authenticateJWT, async (req, res) => {
   }
 });
 
-// Get user invoices - now with real Stripe integration when keys are available
+// Get user invoices - now with local database tracking and Stripe sync
 router.get('/', authenticateJWT, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -82,17 +82,86 @@ router.get('/', authenticateJWT, async (req, res) => {
       });
     }
 
+    // Get invoices from local database
+    const localInvoices = await new Promise((resolve, reject) => {
+      db.all(
+        `
+        SELECT 
+          i.*,
+          c.first_name as contact_first_name,
+          c.last_name as contact_last_name,
+          c.email as contact_email
+        FROM invoices i
+        LEFT JOIN user_contacts c ON i.contact_id = c.id
+        WHERE i.user_id = ?
+        ORDER BY i.created_at DESC
+      `,
+        [userId],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows);
+        },
+      );
+    });
+
+    // Optionally sync with Stripe for latest status (for recent invoices)
     const stripe = createUserStripeClient(user.stripe_secret_key);
-    if (!stripe) {
-      return res.status(400).json({ error: 'Invalid Stripe configuration' });
+    if (stripe && localInvoices.length > 0) {
+      // Sync recent invoices (last 10) with Stripe for real-time status
+      const recentInvoices = localInvoices.slice(0, 10);
+
+      for (const localInvoice of recentInvoices) {
+        try {
+          const stripeInvoice = await stripe.invoices.retrieve(localInvoice.stripe_invoice_id);
+
+          // Update local status if it's different
+          if (stripeInvoice.status !== localInvoice.status) {
+            await new Promise((resolve, reject) => {
+              db.run(
+                'UPDATE invoices SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                [stripeInvoice.status, localInvoice.id],
+                function (err) {
+                  if (err) reject(err);
+                  else resolve();
+                },
+              );
+            });
+            localInvoice.status = stripeInvoice.status;
+          }
+        } catch (error) {
+          console.warn(`Failed to sync invoice ${localInvoice.stripe_invoice_id}:`, error.message);
+        }
+      }
     }
 
-    // Get invoices from Stripe
-    const invoices = await stripe.invoices.list({ limit: 100 });
+    // Format invoices for frontend
+    const formattedInvoices = localInvoices.map((invoice) => ({
+      id: invoice.stripe_invoice_id,
+      localId: invoice.id,
+      status: invoice.status,
+      total: invoice.total_amount,
+      currency: invoice.currency,
+      created: invoice.created_at,
+      dueDate: invoice.due_date,
+      paidAt: invoice.paid_at,
+      hostedInvoiceUrl: invoice.hosted_invoice_url,
+      invoicePdf: invoice.invoice_pdf,
+      customer: {
+        id: invoice.stripe_customer_id,
+        name:
+          invoice.contact_first_name && invoice.contact_last_name
+            ? `${invoice.contact_first_name} ${invoice.contact_last_name}`
+            : 'Manual Customer',
+        email: invoice.contact_email,
+      },
+      description: invoice.description,
+      paymentIntent: invoice.payment_intent,
+      amountPaid: invoice.amount_paid,
+    }));
 
     res.json({
-      invoices: invoices.data,
-      hasMore: invoices.has_more,
+      invoices: formattedInvoices,
+      total: formattedInvoices.length,
     });
   } catch (error) {
     console.error('Error fetching invoices:', error);
@@ -100,8 +169,8 @@ router.get('/', authenticateJWT, async (req, res) => {
   }
 });
 
-// Create invoice - now with real Stripe integration
-router.post('/create', authenticateJWT, async (req, res) => {
+// Create invoice - now with real Stripe integration and local tracking
+router.post('/', authenticateJWT, async (req, res) => {
   try {
     const userId = req.user.id;
     const user = await getUserStripeConfig(userId);
@@ -117,57 +186,32 @@ router.post('/create', authenticateJWT, async (req, res) => {
       return res.status(400).json({ error: 'Invalid Stripe configuration' });
     }
 
-    const { contactId, customer_email, manualCustomer, items, description, metadata } = req.body;
+    const {
+      customerInfo,
+      items,
+      dueDate,
+      notes,
+      contactId,
+      existingStripeCustomerId,
+      collectionMethod = 'charge_automatically', // New parameter: 'charge_automatically' or 'send_invoice'
+    } = req.body;
 
-    // Determine customer information and check for existing Stripe customer
-    let customerInfo = {};
-    let existingStripeCustomerId = null;
+    if (!customerInfo || !items || items.length === 0) {
+      return res.status(400).json({ error: 'Customer information and items are required' });
+    }
 
-    if (contactId) {
-      // Use existing contact
-      const contact = await getContactById(userId, contactId);
-      if (!contact) {
-        return res.status(404).json({ error: 'Contact not found' });
-      }
+    // Validate due date requirement for send_invoice collection method
+    if (collectionMethod === 'send_invoice' && !dueDate) {
+      return res.status(400).json({
+        error: 'If sending an invoice to the client, you must specify a due date.',
+      });
+    }
 
-      // Use existing Stripe customer ID if available
-      existingStripeCustomerId = contact.stripe_customer_id;
-
-      customerInfo = {
-        email: contact.email,
-        name: `${contact.first_name} ${contact.last_name || ''}`.trim(),
-        phone: contact.phone || undefined,
-        address: contact.street_address
-          ? {
-              line1: contact.street_address,
-              city: contact.city || undefined,
-              state: contact.state || undefined,
-              postal_code: contact.postal_code || undefined,
-              country: 'US',
-            }
-          : undefined,
-      };
-    } else if (manualCustomer) {
-      // Use manual customer entry
-      customerInfo = {
-        email: manualCustomer.email,
-        name: `${manualCustomer.firstName} ${manualCustomer.lastName}`,
-        phone: manualCustomer.phone || undefined,
-        address: manualCustomer.address
-          ? {
-              line1: manualCustomer.address,
-              city: manualCustomer.city || undefined,
-              state: manualCustomer.state || undefined,
-              postal_code: manualCustomer.zipCode || undefined,
-              country: manualCustomer.country || 'US',
-            }
-          : undefined,
-      };
-    } else if (customer_email) {
-      // Fallback to just email
-      customerInfo = { email: customer_email };
-    } else {
-      return res.status(400).json({ error: 'Customer information is required' });
+    // Validate email requirement for send_invoice collection method
+    if (collectionMethod === 'send_invoice' && !customerInfo.email) {
+      return res.status(400).json({
+        error: 'If sending an invoice to the client, you must specify an email address.',
+      });
     }
 
     // Create or retrieve customer
@@ -244,39 +288,125 @@ router.post('/create', authenticateJWT, async (req, res) => {
       }
     }
 
-    // Create invoice
-    const invoice = await stripe.invoices.create({
+    // Calculate total amount
+    const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+    // Create invoice with collection method based on user choice
+    const invoiceData = {
       customer: customer.id,
-      description: description || 'Invoice',
+      description: notes || 'Invoice from 100KTracker',
       auto_advance: false, // Don't auto-finalize
+      collection_method: collectionMethod, // Either 'charge_automatically' or 'send_invoice'
       metadata: {
         user_id: userId.toString(),
         contact_id: contactId?.toString() || '',
         created_via: '100ktracker',
-        ...metadata,
+        collection_method: collectionMethod,
       },
-    });
+    };
+
+    // Add due_date only for send_invoice collection method
+    if (dueDate && collectionMethod === 'send_invoice') {
+      invoiceData.due_date = Math.floor(new Date(dueDate).getTime() / 1000);
+    } else if (dueDate) {
+      // Store due date in metadata for charge_automatically invoices
+      invoiceData.metadata.due_date = dueDate;
+    }
+
+    const invoice = await stripe.invoices.create(invoiceData);
 
     // Add items to invoice
     for (const item of items) {
       await stripe.invoiceItems.create({
         customer: customer.id,
         invoice: invoice.id,
-        amount: Math.round((item.amount || 0) * 100), // Convert to cents
+        amount: Math.round(item.price * 100 * item.quantity), // Total amount in cents (price * quantity)
         currency: 'usd',
-        description: item.description || 'Item',
-        quantity: item.quantity || 1,
+        description: item.description,
+        metadata: {
+          watch_id: item.watch_id?.toString() || '',
+          unit_price: item.price.toString(),
+          quantity: item.quantity.toString(),
+        },
       });
     }
 
-    // Finalize invoice
+    // Finalize invoice to generate hosted URL or prepare for sending
     const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoice.id);
+
+    let responseMessage = 'Invoice created successfully';
+    let hostedInvoiceUrl = finalizedInvoice.hosted_invoice_url;
+
+    // If collection method is send_invoice, we can provide the option to send it
+    if (collectionMethod === 'send_invoice') {
+      responseMessage = 'Invoice created successfully. Use the "Send Invoice" button to email it to the customer.';
+    } else {
+      responseMessage = 'Invoice created successfully. Customer can pay immediately using the hosted invoice URL.';
+    }
+
+    // Save invoice to local database for tracking
+    const localInvoiceId = await new Promise((resolve, reject) => {
+      db.run(
+        `
+        INSERT INTO invoices (
+          user_id, contact_id, stripe_invoice_id, stripe_customer_id, 
+          status, total_amount, currency, description, hosted_invoice_url,
+          invoice_pdf, finalized_at, metadata
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+        [
+          userId,
+          contactId || null,
+          finalizedInvoice.id,
+          customer.id,
+          finalizedInvoice.status,
+          totalAmount,
+          'usd',
+          notes || '',
+          finalizedInvoice.hosted_invoice_url,
+          finalizedInvoice.invoice_pdf,
+          new Date().toISOString(),
+          JSON.stringify(finalizedInvoice.metadata),
+        ],
+        function (err) {
+          if (err) reject(err);
+          else resolve(this.lastID);
+        },
+      );
+    });
+
+    // Save invoice items
+    for (const item of items) {
+      await new Promise((resolve, reject) => {
+        db.run(
+          `
+          INSERT INTO invoice_items (
+            invoice_id, watch_id, description, quantity, unit_price, total_amount
+          ) VALUES (?, ?, ?, ?, ?, ?)
+        `,
+          [
+            localInvoiceId,
+            item.watch_id || null,
+            item.description,
+            item.quantity,
+            item.price,
+            item.price * item.quantity,
+          ],
+          function (err) {
+            if (err) reject(err);
+            else resolve();
+          },
+        );
+      });
+    }
 
     res.json({
       invoice: finalizedInvoice,
-      invoice_url: finalizedInvoice.hosted_invoice_url,
+      invoiceUrl: hostedInvoiceUrl,
       customer: customer,
-      message: 'Invoice created successfully',
+      localInvoiceId: localInvoiceId,
+      collectionMethod: collectionMethod,
+      message: responseMessage,
     });
   } catch (error) {
     console.error('Error creating invoice:', error);

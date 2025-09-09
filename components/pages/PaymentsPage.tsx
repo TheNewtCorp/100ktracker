@@ -2,17 +2,26 @@ import React, { useState, useEffect } from 'react';
 import InvoiceCreator from './payments/InvoiceCreator';
 import InvoiceList from './payments/InvoiceList';
 import InvoiceDetails from './payments/InvoiceDetails';
+import PaymentResult from './payments/PaymentResult';
 import { Invoice, InvoiceItem } from '../../types';
 import { apiService } from '../../services/apiService';
 
 interface PaymentsPageProps {}
 
 const PaymentsPage: React.FC<PaymentsPageProps> = () => {
-  const [currentView, setCurrentView] = useState<'list' | 'create' | 'details'>('list');
+  const [currentView, setCurrentView] = useState<'list' | 'create' | 'details' | 'payment-result'>('list');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Check if we're returning from a payment
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('payment_intent') || urlParams.has('redirect_status')) {
+      setCurrentView('payment-result');
+    }
+  }, []);
 
   // Load invoices on component mount
   useEffect(() => {
@@ -36,7 +45,13 @@ const PaymentsPage: React.FC<PaymentsPageProps> = () => {
   const handleCreateInvoice = async (invoiceData: any) => {
     try {
       setError(null);
-      const response = await apiService.post('/invoices/create', invoiceData);
+      const response = await apiService.post('/invoices', invoiceData);
+
+      // If we get a hosted invoice URL, open it in a new tab
+      if (response.invoiceUrl) {
+        window.open(response.invoiceUrl, '_blank');
+      }
+
       await loadInvoices(); // Reload the list
       setCurrentView('list');
       return response;
@@ -102,6 +117,19 @@ const PaymentsPage: React.FC<PaymentsPageProps> = () => {
           />
         ) : (
           <div className='text-platinum-silver/60'>Invoice not found</div>
+        );
+
+      case 'payment-result':
+        return (
+          <PaymentResult
+            onBack={() => {
+              setCurrentView('list');
+              // Clean up URL parameters
+              window.history.replaceState({}, document.title, window.location.pathname);
+              // Reload invoices to get updated status
+              loadInvoices();
+            }}
+          />
         );
 
       case 'list':

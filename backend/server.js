@@ -9,12 +9,17 @@ const contactRoutes = require('./routes/contacts');
 const leadRoutes = require('./routes/leads');
 const invoiceRoutes = require('./routes/invoices-safe'); // Safe version without Stripe
 const accountRoutes = require('./routes/account');
+const webhookRoutes = require('./routes/webhooks'); // Step 5: Webhook integration
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(helmet());
 app.use(cors());
+
+// Webhook routes need raw body parsing, so add them before express.json()
+app.use('/api/webhooks', webhookRoutes);
+
 app.use(express.json());
 
 // Routes

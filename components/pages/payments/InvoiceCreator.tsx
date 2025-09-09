@@ -45,6 +45,9 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
   const [notes, setNotes] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [taxRate, setTaxRate] = useState(0);
+  const [collectionMethod, setCollectionMethod] = useState<'charge_automatically' | 'send_invoice'>(
+    'charge_automatically',
+  );
 
   useEffect(() => {
     loadData();
@@ -109,6 +112,14 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
     return !!(manualCustomer.email && manualCustomer.firstName && manualCustomer.lastName);
   };
 
+  const hasValidEmail = (): boolean => {
+    if (customerMode === 'existing' && selectedContactId) {
+      const selectedContact = contacts.find((c) => c.id === selectedContactId);
+      return !!selectedContact?.email;
+    }
+    return !!manualCustomer.email;
+  };
+
   const calculateSubtotal = (): number => {
     return selectedWatches.reduce((sum, item) => sum + item.price * item.quantity, 0);
   };
@@ -124,15 +135,28 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Client-side validation for due date requirement
+    if (collectionMethod === 'send_invoice' && !dueDate) {
+      alert('If sending an invoice to the client, you must specify a due date.');
+      return;
+    }
+
+    // Get selected contact if in existing mode for email validation
+    const selectedContact =
+      customerMode === 'existing' && selectedContactId ? contacts.find((c) => c.id === selectedContactId) : null;
+
+    // Client-side validation for email requirement when sending invoice
+    const customerEmail = customerMode === 'existing' ? selectedContact?.email : manualCustomer.email;
+    if (collectionMethod === 'send_invoice' && !customerEmail) {
+      alert('If sending an invoice to the client, you must specify an email address.');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      // Get selected contact if in existing mode
-      const selectedContact =
-        customerMode === 'existing' && selectedContactId ? contacts.find((c) => c.id === selectedContactId) : null;
-
       // Prepare customer info
       const customerInfo: any = {
-        email: customerMode === 'existing' ? selectedContact?.email : manualCustomer.email,
+        email: customerEmail,
         name:
           customerMode === 'existing'
             ? `${selectedContact?.firstName || ''} ${selectedContact?.lastName || ''}`.trim()
@@ -193,6 +217,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
         contactId: customerMode === 'existing' ? selectedContactId : undefined,
         existingStripeCustomerId:
           customerMode === 'existing' ? (selectedContact as any)?.stripe_customer_id : undefined,
+        collectionMethod,
       };
 
       await onSubmit(invoiceData);
@@ -303,10 +328,15 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                 <option value=''>Choose a customer...</option>
                 {contacts.map((contact) => (
                   <option key={contact.id} value={contact.id}>
-                    {contact.firstName} {contact.lastName} ({contact.email})
+                    {contact.firstName} {contact.lastName} ({contact.email || 'No email'})
                   </option>
                 ))}
               </select>
+              {collectionMethod === 'send_invoice' && selectedContactId && !hasValidEmail() && (
+                <p className='text-red-400 text-xs mt-1'>
+                  Selected customer has no email address. Email is required when sending invoice to customer.
+                </p>
+              )}
             </div>
           )}
 
@@ -339,15 +369,27 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
               </div>
 
               <div>
-                <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Email Address *</label>
+                <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>
+                  Email Address{' '}
+                  {(collectionMethod === 'send_invoice' || customerMode === 'manual') && (
+                    <span className='text-red-400'>*</span>
+                  )}
+                </label>
                 <input
                   type='email'
                   value={manualCustomer.email}
                   onChange={(e) => updateManualCustomer('email', e.target.value)}
-                  required
-                  className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                  required={collectionMethod === 'send_invoice' || customerMode === 'manual'}
+                  className={`w-full bg-rich-black border rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold ${
+                    collectionMethod === 'send_invoice' && !manualCustomer.email
+                      ? 'border-red-400/50'
+                      : 'border-platinum-silver/20'
+                  }`}
                   placeholder='customer@example.com'
                 />
+                {collectionMethod === 'send_invoice' && !manualCustomer.email && (
+                  <p className='text-red-400 text-xs mt-1'>Email is required when sending invoice to customer</p>
+                )}
               </div>
 
               <div>
@@ -514,15 +556,42 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
 
           <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
             <div>
-              <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Due Date</label>
+              <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>
+                Due Date {collectionMethod === 'send_invoice' && <span className='text-red-400'>*</span>}
+              </label>
               <input
                 type='date'
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                required={collectionMethod === 'send_invoice'}
+                className={`w-full bg-rich-black border rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold ${
+                  collectionMethod === 'send_invoice' && !dueDate ? 'border-red-400/50' : 'border-platinum-silver/20'
+                }`}
               />
+              {collectionMethod === 'send_invoice' && !dueDate && (
+                <p className='text-red-400 text-xs mt-1'>Due date is required when sending invoice to customer</p>
+              )}
             </div>
 
+            <div>
+              <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Payment Method</label>
+              <select
+                value={collectionMethod}
+                onChange={(e) => setCollectionMethod(e.target.value as 'charge_automatically' | 'send_invoice')}
+                className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+              >
+                <option value='charge_automatically'>Charge Immediately (Hosted Payment)</option>
+                <option value='send_invoice'>Send Invoice to Customer</option>
+              </select>
+              <p className='text-platinum-silver/60 text-xs mt-1'>
+                {collectionMethod === 'charge_automatically'
+                  ? 'Customer can pay immediately via hosted payment page'
+                  : 'Invoice will be emailed to customer for later payment'}
+              </p>
+            </div>
+          </div>
+
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-6 mt-6'>
             <div>
               <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Tax Rate (%)</label>
               <input
@@ -533,6 +602,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                 value={taxRate}
                 onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
                 className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                placeholder='0.00'
               />
             </div>
           </div>
@@ -593,7 +663,9 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
               submitting ||
               selectedWatches.length === 0 ||
               (customerMode === 'existing' && !selectedContactId) ||
-              (customerMode === 'manual' && !isManualCustomerValid())
+              (customerMode === 'manual' && !isManualCustomerValid()) ||
+              (collectionMethod === 'send_invoice' && !dueDate) ||
+              (collectionMethod === 'send_invoice' && !hasValidEmail())
             }
             className='bg-champagne-gold hover:bg-champagne-gold/80 disabled:bg-champagne-gold/50 text-rich-black font-medium px-6 py-2 rounded-lg transition-colors'
           >
