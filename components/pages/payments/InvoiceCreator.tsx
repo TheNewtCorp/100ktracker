@@ -323,7 +323,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                 value={selectedContactId}
                 onChange={(e) => setSelectedContactId(e.target.value)}
                 required
-                className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold [&>option]:text-black [&>option]:bg-white'
               >
                 <option value=''>Choose a customer...</option>
                 {contacts.map((contact) => (
@@ -351,7 +351,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                     value={manualCustomer.firstName}
                     onChange={(e) => updateManualCustomer('firstName', e.target.value)}
                     required
-                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
                     placeholder='Enter first name'
                   />
                 </div>
@@ -362,7 +362,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                     value={manualCustomer.lastName}
                     onChange={(e) => updateManualCustomer('lastName', e.target.value)}
                     required
-                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
                     placeholder='Enter last name'
                   />
                 </div>
@@ -380,7 +380,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                   value={manualCustomer.email}
                   onChange={(e) => updateManualCustomer('email', e.target.value)}
                   required={collectionMethod === 'send_invoice' || customerMode === 'manual'}
-                  className={`w-full bg-rich-black border rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold ${
+                  className={`w-full bg-rich-black border rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold ${
                     collectionMethod === 'send_invoice' && !manualCustomer.email
                       ? 'border-red-400/50'
                       : 'border-platinum-silver/20'
@@ -398,7 +398,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                   type='tel'
                   value={manualCustomer.phone}
                   onChange={(e) => updateManualCustomer('phone', e.target.value)}
-                  className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                  className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
                   placeholder='(555) 123-4567'
                 />
               </div>
@@ -409,7 +409,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                   type='text'
                   value={manualCustomer.address}
                   onChange={(e) => updateManualCustomer('address', e.target.value)}
-                  className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                  className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
                   placeholder='123 Main Street'
                 />
               </div>
@@ -421,7 +421,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                     type='text'
                     value={manualCustomer.city}
                     onChange={(e) => updateManualCustomer('city', e.target.value)}
-                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
                     placeholder='New York'
                   />
                 </div>
@@ -431,7 +431,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                     type='text'
                     value={manualCustomer.state}
                     onChange={(e) => updateManualCustomer('state', e.target.value)}
-                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
                     placeholder='NY'
                   />
                 </div>
@@ -441,7 +441,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                     type='text'
                     value={manualCustomer.zipCode}
                     onChange={(e) => updateManualCustomer('zipCode', e.target.value)}
-                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
                     placeholder='10001'
                   />
                 </div>
@@ -452,7 +452,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                 <select
                   value={manualCustomer.country}
                   onChange={(e) => updateManualCustomer('country', e.target.value)}
-                  className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                  className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold [&>option]:text-black [&>option]:bg-white'
                 >
                   <option value='US'>United States</option>
                   <option value='CA'>Canada</option>
@@ -498,7 +498,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                         value={item.watchId}
                         onChange={(e) => updateWatchItem(index, 'watchId', parseInt(e.target.value))}
                         required
-                        className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-3 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                        className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-3 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold [&>option]:text-black [&>option]:bg-white'
                       >
                         <option value={0}>Select a watch...</option>
                         {watches.map((watch) => (
@@ -564,7 +564,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 required={collectionMethod === 'send_invoice'}
-                className={`w-full bg-rich-black border rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold ${
+                className={`w-full bg-rich-black border rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold ${
                   collectionMethod === 'send_invoice' && !dueDate ? 'border-red-400/50' : 'border-platinum-silver/20'
                 }`}
               />
@@ -578,7 +578,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
               <select
                 value={collectionMethod}
                 onChange={(e) => setCollectionMethod(e.target.value as 'charge_automatically' | 'send_invoice')}
-                className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold [&>option]:text-black [&>option]:bg-white'
               >
                 <option value='charge_automatically'>Charge Immediately (Hosted Payment)</option>
                 <option value='send_invoice'>Send Invoice to Customer</option>
@@ -601,7 +601,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                 step='0.01'
                 value={taxRate}
                 onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
-                className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
                 placeholder='0.00'
               />
             </div>
@@ -613,7 +613,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={4}
-              className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold resize-vertical'
+              className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold resize-vertical'
               placeholder='Add any additional notes or terms...'
             />
           </div>
