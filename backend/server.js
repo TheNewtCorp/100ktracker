@@ -12,7 +12,7 @@ console.log('- JWT_SECRET:', process.env.JWT_SECRET ? 'set' : 'not set');
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
-const { initDB } = require('./db');
+const { initDB, closeDB } = require('./db');
 const authRoutes = require('./auth');
 const watchRoutes = require('./routes/watches');
 const contactRoutes = require('./routes/contacts');
@@ -40,21 +40,31 @@ async function startServer() {
     });
 
     // Graceful shutdown handling
-    process.on('SIGTERM', () => {
-      console.log('SIGTERM received, shutting down gracefully');
+    const gracefulShutdown = async (signal) => {
+      console.log(`${signal} received, shutting down gracefully`);
+      
+      // Close database connection first
+      try {
+        await closeDB();
+      } catch (error) {
+        console.error('Error closing database:', error);
+      }
+      
+      // Then close the server
       server.close(() => {
         console.log('Server closed');
         process.exit(0);
       });
-    });
+      
+      // Force exit after 10 seconds if server doesn't close
+      setTimeout(() => {
+        console.error('Could not close connections in time, forcefully shutting down');
+        process.exit(1);
+      }, 10000);
+    };
 
-    process.on('SIGINT', () => {
-      console.log('SIGINT received, shutting down gracefully');
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-      });
-    });
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
@@ -112,12 +122,47 @@ app.get('/', (req, res) => {
 });
 
 // Health check endpoint for deployment monitoring
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-  });
+app.get('/health', async (req, res) => {
+  try {
+    // Basic health check
+    const healthData = {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      env: process.env.NODE_ENV || 'development'
+    };
+
+    // Quick database connectivity check
+    const { db } = require('./db');
+    if (db) {
+      db.get('SELECT 1', (err) => {
+        if (err) {
+          console.error('Health check database error:', err);
+          return res.status(503).json({
+            status: 'unhealthy',
+            error: 'Database connection failed',
+            timestamp: new Date().toISOString()
+          });
+        }
+        
+        res.status(200).json(healthData);
+      });
+    } else {
+      // Database not initialized yet, but server is running
+      res.status(200).json({
+        ...healthData,
+        note: 'Database not yet initialized'
+      });
+    }
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(503).json({
+      status: 'unhealthy',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Debug endpoints for production troubleshooting
