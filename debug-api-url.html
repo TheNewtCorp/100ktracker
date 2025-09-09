@@ -1,64 +1,64 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
+  <head>
     <title>API URL Test</title>
-</head>
-<body>
+  </head>
+  <body>
     <h1>Frontend API Configuration Test</h1>
     <div id="results"></div>
-    
+
     <script>
-        console.log('Environment test running...');
-        
-        // Test what the frontend thinks the API URL is
-        const API_BASE_URL = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:3001/api';
-        
-        document.getElementById('results').innerHTML = `
-            <h2>Configuration:</h2>
-            <p><strong>API_BASE_URL:</strong> ${API_BASE_URL}</p>
-            <p><strong>Environment:</strong> ${import.meta?.env?.MODE || 'unknown'}</p>
-            <p><strong>All env vars:</strong> ${JSON.stringify(import.meta?.env || {}, null, 2)}</p>
-            
-            <h2>Test Login Request:</h2>
-            <button onclick="testLogin()">Test Login</button>
-            <div id="login-result"></div>
-        `;
-        
-        async function testLogin() {
-            const resultDiv = document.getElementById('login-result');
-            resultDiv.innerHTML = '<p>Testing login...</p>';
-            
-            try {
-                const url = `${API_BASE_URL}/login`;
-                console.log('Making request to:', url);
-                
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        username: 'admin',
-                        password: 'password'
-                    })
-                });
-                
-                console.log('Response:', response);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    resultDiv.innerHTML = `<p style="color: green;">✅ SUCCESS: ${JSON.stringify(data)}</p>`;
-                } else {
-                    const error = await response.text();
-                    resultDiv.innerHTML = `<p style="color: orange;">⚠️ HTTP ${response.status}: ${error}</p>`;
-                }
-            } catch (error) {
-                console.error('Fetch error:', error);
-                resultDiv.innerHTML = `<p style="color: red;">❌ FETCH FAILED: ${error.message}</p>`;
-            }
-        }
-        
-        window.testLogin = testLogin;
+      console.log('Environment test running...');
+
+      // Test what the frontend thinks the API URL is
+      const API_BASE_URL = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:3001/api';
+
+      document.getElementById('results').innerHTML = `
+          <h2>Configuration:</h2>
+          <p><strong>API_BASE_URL:</strong> ${API_BASE_URL}</p>
+          <p><strong>Environment:</strong> ${import.meta?.env?.MODE || 'unknown'}</p>
+          <p><strong>All env vars:</strong> ${JSON.stringify(import.meta?.env || {}, null, 2)}</p>
+
+          <h2>Test Login Request:</h2>
+          <button onclick="testLogin()">Test Login</button>
+          <div id="login-result"></div>
+      `;
+
+      async function testLogin() {
+          const resultDiv = document.getElementById('login-result');
+          resultDiv.innerHTML = '<p>Testing login...</p>';
+
+          try {
+              const url = `${API_BASE_URL}/login`;
+              console.log('Making request to:', url);
+
+              const response = await fetch(url, {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                      username: 'admin',
+                      password: 'password'
+                  })
+              });
+
+              console.log('Response:', response);
+
+              if (response.ok) {
+                  const data = await response.json();
+                  resultDiv.innerHTML = `<p style="color: green;">✅ SUCCESS: ${JSON.stringify(data)}</p>`;
+              } else {
+                  const error = await response.text();
+                  resultDiv.innerHTML = `<p style="color: orange;">⚠️ HTTP ${response.status}: ${error}</p>`;
+              }
+          } catch (error) {
+              console.error('Fetch error:', error);
+              resultDiv.innerHTML = `<p style="color: red;">❌ FETCH FAILED: ${error.message}</p>`;
+          }
+      }
+
+      window.testLogin = testLogin;
     </script>
-</body>
+  </body>
 </html>

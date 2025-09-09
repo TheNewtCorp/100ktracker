@@ -34,7 +34,7 @@ router.post('/login', (req, res) => {
       console.error('Database error during login:', err);
       return res.status(500).json({ error: 'Database error' });
     }
-    
+
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
     // Check if user is suspended
