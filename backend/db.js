@@ -417,12 +417,27 @@ function deleteUserCard(userId, cardId, callback) {
   db.run('DELETE FROM user_cards WHERE id = ? AND user_id = ?', [cardId, userId], callback);
 }
 
+// Helper functions for user login updates
+function updateFirstLoginTimestamp(userId, callback = () => {}) {
+  if (db) {
+    db.run('UPDATE users SET first_login_at = CURRENT_TIMESTAMP WHERE id = ?', [userId], callback);
+  }
+}
+
+function updateUserStatus(userId, status, callback = () => {}) {
+  if (db) {
+    db.run('UPDATE users SET status = ? WHERE id = ?', [status, userId], callback);
+  }
+}
+
 module.exports = {
   db,
   initDB,
   addUser,
   findUser,
   verifyPassword,
+  updateFirstLoginTimestamp,
+  updateUserStatus,
   // Watches
   getUserWatches,
   createUserWatch,

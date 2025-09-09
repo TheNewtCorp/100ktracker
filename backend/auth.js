@@ -1,7 +1,7 @@
 // Express routes for login and registration
 const express = require('express');
 const router = express.Router();
-const { addUser, findUser, verifyPassword } = require('./db');
+const { addUser, findUser, verifyPassword, updateFirstLoginTimestamp, updateUserStatus } = require('./db');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
@@ -28,10 +28,14 @@ router.post('/login', (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Missing fields' });
 
-  // Enhanced user lookup with all fields
-  const { db } = require('./db');
-  db.get('SELECT * FROM users WHERE username = ?', [username], (err, user) => {
-    if (err || !user) return res.status(401).json({ error: 'Invalid credentials' });
+  // Use findUser function instead of accessing db directly
+  findUser(username, (err, user) => {
+    if (err) {
+      console.error('Database error during login:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
     // Check if user is suspended
     if (user.status === 'suspended') {
@@ -42,14 +46,14 @@ router.post('/login', (req, res) => {
 
     // Update first login timestamp if this is their first login
     if (!user.first_login_at) {
-      db.run('UPDATE users SET first_login_at = CURRENT_TIMESTAMP WHERE id = ?', [user.id], (err) => {
+      updateFirstLoginTimestamp(user.id, (err) => {
         if (err) console.error('Failed to update first login timestamp:', err);
       });
     }
 
     // Update status from pending to active on first successful login
     if (user.status === 'pending') {
-      db.run('UPDATE users SET status = "active" WHERE id = ?', [user.id], (err) => {
+      updateUserStatus(user.id, 'active', (err) => {
         if (err) console.error('Failed to update user status:', err);
       });
     }
