@@ -2,6 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import LoginPage from './components/LoginPage';
 import HomePage from './components/HomePage';
+import UserMenu from './components/UserMenu';
+import AccountSettingsPage from './components/pages/AccountSettingsPage';
 import apiService from './services/apiService';
 
 const App: React.FC = () => {
@@ -10,6 +12,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [userInfo, setUserInfo] = useState<any>(null);
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
 
   // On mount, check for token in localStorage
   React.useEffect(() => {
@@ -54,6 +57,19 @@ const App: React.FC = () => {
     setToken(null);
     setIsLoggedIn(false);
     setUserInfo(null);
+    setShowAccountSettings(false);
+  };
+
+  const handleAccountSettings = () => {
+    setShowAccountSettings(true);
+  };
+
+  const handleBackToDashboard = () => {
+    setShowAccountSettings(false);
+  };
+
+  const handleUserInfoUpdate = (updatedInfo: any) => {
+    setUserInfo(updatedInfo);
   };
 
   return (
@@ -76,16 +92,19 @@ const App: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.3 }}
           >
-            {/* Show user info and logout button for demo */}
+            {/* User Menu in top-right corner */}
             <div className='flex justify-end p-4'>
-              <div className='mr-4 text-sm text-platinum-silver/70'>
-                {userInfo ? `Logged in as ${userInfo.username}` : ''}
-              </div>
-              <button onClick={handleLogout} className='px-4 py-2 bg-crimson-red text-white rounded hover:bg-red-700'>
-                Logout
-              </button>
+              <UserMenu userInfo={userInfo} onAccountSettings={handleAccountSettings} onLogout={handleLogout} />
             </div>
-            <HomePage />
+            {showAccountSettings ? (
+              <AccountSettingsPage
+                userInfo={userInfo}
+                onUserInfoUpdate={handleUserInfoUpdate}
+                onBack={handleBackToDashboard}
+              />
+            ) : (
+              <HomePage />
+            )}
           </motion.div>
         )}
       </AnimatePresence>

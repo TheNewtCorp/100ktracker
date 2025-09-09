@@ -7,7 +7,8 @@ const authRoutes = require('./auth');
 const watchRoutes = require('./routes/watches');
 const contactRoutes = require('./routes/contacts');
 const leadRoutes = require('./routes/leads');
-// const invoiceRoutes = require('./routes/invoices'); // Temporarily disabled
+const invoiceRoutes = require('./routes/invoices-safe'); // Safe version without Stripe
+const accountRoutes = require('./routes/account');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -21,7 +22,8 @@ app.use('/api', authRoutes);
 app.use('/api/watches', watchRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/leads', leadRoutes);
-// app.use('/api/invoices', invoiceRoutes); // Temporarily disabled
+app.use('/api/invoices', invoiceRoutes); // Safe version enabled
+app.use('/api/account', accountRoutes);
 
 app.get('/', (req, res) => {
   res.send('100KTracker backend running');

@@ -11,6 +11,32 @@ const {
   deleteUserCard,
 } = require('../db');
 
+// Import Stripe helper functions
+const { db } = require('../db');
+
+// Function to get user's Stripe configuration
+async function getUserStripeConfig(userId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT stripe_secret_key, stripe_publishable_key FROM users WHERE id = ?', [userId], (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+}
+
+// Function to create user-specific Stripe client
+function createUserStripeClient(secretKey) {
+  if (!secretKey) return null;
+
+  try {
+    const stripe = require('stripe')(secretKey);
+    return stripe;
+  } catch (error) {
+    console.error('Error creating Stripe client:', error);
+    return null;
+  }
+}
+
 // Middleware to verify JWT
 function authenticateJWT(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -236,6 +262,259 @@ router.delete('/:contactId/cards/:cardId', authenticateJWT, (req, res) => {
 
     res.json({ message: 'Card deleted successfully' });
   });
+});
+
+// ========== STRIPE INTEGRATION ENDPOINTS ==========
+
+// POST /api/contacts/:id/sync-stripe - Sync contact with Stripe customer
+router.post('/:id/sync-stripe', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const contactId = req.params.id;
+
+    // Get user's Stripe config
+    const user = await getUserStripeConfig(userId);
+    if (!user?.stripe_secret_key) {
+      return res.status(400).json({
+        error: 'Set Stripe API Keys in Account Settings to use this feature',
+      });
+    }
+
+    const stripe = createUserStripeClient(user.stripe_secret_key);
+    if (!stripe) {
+      return res.status(400).json({ error: 'Invalid Stripe configuration' });
+    }
+
+    // Get contact details
+    const contact = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM user_contacts WHERE id = ? AND user_id = ?', [contactId, userId], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    if (!contact.email) {
+      return res.status(400).json({ error: 'Contact must have an email to sync with Stripe' });
+    }
+
+    // Check if customer already exists in Stripe
+    let stripeCustomer;
+    if (contact.stripe_customer_id) {
+      try {
+        stripeCustomer = await stripe.customers.retrieve(contact.stripe_customer_id);
+      } catch (err) {
+        console.log('Existing Stripe customer not found, creating new one');
+        stripeCustomer = null;
+      }
+    }
+
+    // Create or update Stripe customer
+    if (!stripeCustomer) {
+      // Check if customer exists by email
+      const existingCustomers = await stripe.customers.list({
+        email: contact.email,
+        limit: 1,
+      });
+
+      if (existingCustomers.data.length > 0) {
+        stripeCustomer = existingCustomers.data[0];
+      } else {
+        // Create new customer
+        stripeCustomer = await stripe.customers.create({
+          email: contact.email,
+          name: `${contact.first_name} ${contact.last_name || ''}`.trim(),
+          phone: contact.phone || undefined,
+          address: contact.street_address
+            ? {
+                line1: contact.street_address,
+                city: contact.city || undefined,
+                state: contact.state || undefined,
+                postal_code: contact.postal_code || undefined,
+                country: 'US', // Default to US, could be made configurable
+              }
+            : undefined,
+          description: `Customer from 100KTracker - ${req.user.username}`,
+          metadata: {
+            contact_id: contactId.toString(),
+            user_id: userId.toString(),
+            business_name: contact.business_name || '',
+            source: '100ktracker',
+          },
+        });
+      }
+    } else {
+      // Update existing customer with latest contact info
+      stripeCustomer = await stripe.customers.update(stripeCustomer.id, {
+        name: `${contact.first_name} ${contact.last_name || ''}`.trim(),
+        phone: contact.phone || undefined,
+        address: contact.street_address
+          ? {
+              line1: contact.street_address,
+              city: contact.city || undefined,
+              state: contact.state || undefined,
+              postal_code: contact.postal_code || undefined,
+              country: 'US',
+            }
+          : undefined,
+        metadata: {
+          contact_id: contactId.toString(),
+          user_id: userId.toString(),
+          business_name: contact.business_name || '',
+          source: '100ktracker',
+        },
+      });
+    }
+
+    // Get customer's payment methods
+    const paymentMethods = await stripe.paymentMethods.list({
+      customer: stripeCustomer.id,
+      type: 'card',
+    });
+
+    // Update contact with Stripe info
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE user_contacts 
+         SET stripe_customer_id = ?, 
+             stripe_payment_methods = ?, 
+             stripe_default_payment_method = ?,
+             last_stripe_sync = CURRENT_TIMESTAMP
+         WHERE id = ? AND user_id = ?`,
+        [
+          stripeCustomer.id,
+          JSON.stringify(paymentMethods.data),
+          stripeCustomer.invoice_settings?.default_payment_method || null,
+          contactId,
+          userId,
+        ],
+        function (err) {
+          if (err) reject(err);
+          else resolve();
+        },
+      );
+    });
+
+    res.json({
+      message: 'Contact synced with Stripe successfully',
+      stripeCustomer: {
+        id: stripeCustomer.id,
+        email: stripeCustomer.email,
+        name: stripeCustomer.name,
+        paymentMethodsCount: paymentMethods.data.length,
+      },
+      paymentMethods: paymentMethods.data.map((pm) => ({
+        id: pm.id,
+        type: pm.type,
+        card: pm.card
+          ? {
+              brand: pm.card.brand,
+              last4: pm.card.last4,
+              expMonth: pm.card.exp_month,
+              expYear: pm.card.exp_year,
+            }
+          : null,
+      })),
+    });
+  } catch (error) {
+    console.error('Error syncing contact with Stripe:', error);
+    res.status(500).json({
+      error: 'Failed to sync with Stripe',
+      details: error.message,
+    });
+  }
+});
+
+// GET /api/contacts/:id/stripe-info - Get contact's Stripe information
+router.get('/:id/stripe-info', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const contactId = req.params.id;
+
+    // Get contact with Stripe info
+    const contact = await new Promise((resolve, reject) => {
+      db.get(
+        `SELECT stripe_customer_id, stripe_payment_methods, 
+                stripe_default_payment_method, last_stripe_sync
+         FROM user_contacts WHERE id = ? AND user_id = ?`,
+        [contactId, userId],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        },
+      );
+    });
+
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    const hasStripeIntegration = !!contact.stripe_customer_id;
+    let paymentMethods = [];
+
+    if (contact.stripe_payment_methods) {
+      try {
+        paymentMethods = JSON.parse(contact.stripe_payment_methods);
+      } catch (err) {
+        console.error('Error parsing payment methods JSON:', err);
+      }
+    }
+
+    res.json({
+      hasStripeIntegration,
+      stripeCustomerId: contact.stripe_customer_id,
+      paymentMethods: paymentMethods.map((pm) => ({
+        id: pm.id,
+        type: pm.type,
+        card: pm.card
+          ? {
+              brand: pm.card.brand,
+              last4: pm.card.last4,
+              expMonth: pm.card.exp_month,
+              expYear: pm.card.exp_year,
+            }
+          : null,
+      })),
+      defaultPaymentMethod: contact.stripe_default_payment_method,
+      lastSync: contact.last_stripe_sync,
+    });
+  } catch (error) {
+    console.error('Error getting contact Stripe info:', error);
+    res.status(500).json({ error: 'Failed to get Stripe information' });
+  }
+});
+
+// DELETE /api/contacts/:id/stripe-sync - Remove Stripe integration
+router.delete('/:id/stripe-sync', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const contactId = req.params.id;
+
+    // Clear Stripe integration data from contact
+    await new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE user_contacts 
+         SET stripe_customer_id = NULL, 
+             stripe_payment_methods = NULL, 
+             stripe_default_payment_method = NULL,
+             last_stripe_sync = NULL
+         WHERE id = ? AND user_id = ?`,
+        [contactId, userId],
+        function (err) {
+          if (err) reject(err);
+          else resolve();
+        },
+      );
+    });
+
+    res.json({ message: 'Stripe integration removed from contact' });
+  } catch (error) {
+    console.error('Error removing Stripe integration:', error);
+    res.status(500).json({ error: 'Failed to remove Stripe integration' });
+  }
 });
 
 module.exports = router;

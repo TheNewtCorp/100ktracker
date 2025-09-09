@@ -41,6 +41,7 @@ const icons: { [key in Tool]: React.ReactNode } = {
   [Tool.Contacts]: <BookUser className='w-12 h-12' />,
   [Tool.Inventory]: <WatchIcon className='w-12 h-12' />,
   [Tool.Payments]: <CreditCard className='w-12 h-12' />,
+  [Tool.AccountSettings]: '',
 };
 
 const pages: { [key in Tool]: React.ComponentType<any> } = {
@@ -51,6 +52,7 @@ const pages: { [key in Tool]: React.ComponentType<any> } = {
   [Tool.Contacts]: ContactsPage,
   [Tool.Inventory]: InventoryPage,
   [Tool.Payments]: PaymentsPage,
+  [Tool.AccountSettings]: undefined,
 };
 
 const HomePage: React.FC = () => {

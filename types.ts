@@ -6,6 +6,7 @@ export enum Tool {
   Contacts = 'Contacts',
   Inventory = 'Inventory',
   Payments = 'Payments',
+  AccountSettings = 'Account Settings',
 }
 
 export interface AppTool {

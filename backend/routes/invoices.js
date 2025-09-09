@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
-const stripe = require('../stripe-config').stripe;
-const STRIPE_CONFIG = require('../stripe-config').config;
+const { stripe, STRIPE_CONFIG } = require('../stripe-config');
 const { authenticateJWT } = require('../middleware');
 
 // Helper function to create or get Stripe customer
