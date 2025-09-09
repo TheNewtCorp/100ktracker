@@ -1,0 +1,96 @@
+# Frontend files (not needed for backend container)
+components/
+services/
+src/
+dist/
+node_modules/
+index.html
+index.tsx
+App.tsx
+types.ts
+vite.config.ts
+tsconfig.json
+netlify.toml
+
+# Development and build files
+*.log
+npm-debug.log*
+.npm
+.nyc_output
+coverage
+.grunt
+lib-cov
+*.seed
+*.csv
+*.dat
+*.out
+*.pid
+*.gz
+*.swp
+
+pids
+logs
+results
+tmp
+
+# Dependencies
+.sass-cache
+bower_components
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Documentation and development files
+*.md
+.git
+.gitignore
+README.md
+DEPLOYMENT*.md
+NETLIFY_SETUP.md
+
+# Test files (keep these in backend folder but exclude from root)
+backend/test-*.js
+backend/cleanup-*.js
+backend/add-*.js
+backend/list-users.js
+backend/check-*.js
+backend/*.test.js
+backend/*.spec.js
+backend/USER_MANAGEMENT_PHASE*.md
+backend/test-docker.*
+backend/docker-compose.yml
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
