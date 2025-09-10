@@ -692,6 +692,13 @@ function updateInvitationTimestamp(userId, callback = () => {}) {
   }
 }
 
+// Update username helper function
+function updateUsername(oldUsername, newUsername, callback = () => {}) {
+  if (db) {
+    db.run('UPDATE users SET username = ? WHERE username = ?', [newUsername, oldUsername], callback);
+  }
+}
+
 // Database cleanup function
 function closeDB() {
   return new Promise((resolve, reject) => {
@@ -723,6 +730,7 @@ module.exports = {
   updateFirstLoginTimestamp,
   updateUserStatus,
   updateInvitationTimestamp,
+  updateUsername,
   // Watches
   getUserWatches,
   createUserWatch,
