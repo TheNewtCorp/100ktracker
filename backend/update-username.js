@@ -5,11 +5,11 @@ const { initDB, closeDB, findUser, updateUsername } = require('./db');
 async function updateUsernameWrapper(oldUsername, newUsername) {
   try {
     console.log(`🔄 Updating username from "${oldUsername}" to "${newUsername}"`);
-    
+
     // Initialize database first
     await initDB();
     console.log('✅ Database initialized');
-    
+
     // First check if old user exists
     findUser(oldUsername, (err, user) => {
       if (err) {
@@ -17,13 +17,13 @@ async function updateUsernameWrapper(oldUsername, newUsername) {
         closeDB();
         return;
       }
-      
+
       if (!user) {
         console.log(`❌ User "${oldUsername}" not found`);
         closeDB();
         return;
       }
-      
+
       // Check if new username already exists
       findUser(newUsername, (err, existingUser) => {
         if (err) {
@@ -31,15 +31,15 @@ async function updateUsernameWrapper(oldUsername, newUsername) {
           closeDB();
           return;
         }
-        
+
         if (existingUser) {
           console.log(`❌ Username "${newUsername}" already exists`);
           closeDB();
           return;
         }
-        
+
         // Update the username using helper function
-        updateUsername(oldUsername, newUsername, function(err) {
+        updateUsername(oldUsername, newUsername, function (err) {
           if (err) {
             console.error('❌ Error updating username:', err.message);
           } else {
@@ -52,7 +52,6 @@ async function updateUsernameWrapper(oldUsername, newUsername) {
         });
       });
     });
-    
   } catch (error) {
     console.error('❌ Error:', error.message);
   }
