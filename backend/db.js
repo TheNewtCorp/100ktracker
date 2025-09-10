@@ -34,7 +34,13 @@ function initDB() {
         console.log('Connected to SQLite database');
 
         // Create users table
-        createUserTable().then(resolve).catch(reject);
+        createUserTable()
+          .then(() => {
+            // After users table is created, create all other tables
+            return createAllTables();
+          })
+          .then(resolve)
+          .catch(reject);
       });
     } catch (error) {
       console.error('Database initialization failed:', error);
@@ -51,6 +57,8 @@ function createUserTable() {
       username TEXT UNIQUE NOT NULL,
       hashed_password TEXT NOT NULL,
       email TEXT,
+      first_login_at DATETIME,
+      status TEXT DEFAULT 'active',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`,
       (err) => {
@@ -90,6 +98,221 @@ function createUserTable() {
             resolve();
           }
         });
+      },
+    );
+  });
+}
+
+// Create all application tables
+function createAllTables() {
+  return Promise.all([
+    createUserWatchesTable(),
+    createUserContactsTable(),
+    createUserLeadsTable(),
+    createUserCardsTable(),
+    createUserInvoicesTable(),
+    createUserInvoiceItemsTable(),
+  ]);
+}
+
+function createUserWatchesTable() {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `CREATE TABLE IF NOT EXISTS user_watches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      brand TEXT NOT NULL,
+      model TEXT NOT NULL,
+      reference_number TEXT NOT NULL,
+      in_date TEXT, -- YYYY-MM-DD
+      serial_number TEXT,
+      watch_set TEXT, -- WatchOnly, WatchAndBox, WatchAndPapers, FullSet
+      platform_purchased TEXT,
+      purchase_price REAL,
+      liquidation_price REAL,
+      accessories TEXT,
+      accessories_cost REAL DEFAULT 0,
+      date_sold TEXT, -- YYYY-MM-DD
+      platform_sold TEXT,
+      price_sold REAL,
+      fees REAL DEFAULT 0,
+      shipping REAL DEFAULT 0,
+      taxes REAL DEFAULT 0,
+      notes TEXT,
+      buyer_contact_id INTEGER,
+      seller_contact_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+      FOREIGN KEY (buyer_contact_id) REFERENCES user_contacts (id) ON DELETE SET NULL,
+      FOREIGN KEY (seller_contact_id) REFERENCES user_contacts (id) ON DELETE SET NULL
+    )`,
+      (err) => {
+        if (err) {
+          console.error('Error creating user_watches table:', err.message);
+          reject(err);
+        } else {
+          console.log('user_watches table created/verified');
+          resolve();
+        }
+      },
+    );
+  });
+}
+
+function createUserContactsTable() {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `CREATE TABLE IF NOT EXISTS user_contacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      first_name TEXT NOT NULL,
+      last_name TEXT,
+      email TEXT,
+      phone TEXT,
+      contact_source TEXT,
+      contact_type TEXT, -- Lead, Customer, WatchTrader, Jeweler
+      business_name TEXT,
+      street_address TEXT,
+      city TEXT,
+      state TEXT,
+      postal_code TEXT,
+      website TEXT,
+      time_zone TEXT,
+      notes TEXT,
+      stripe_customer_id TEXT, -- Stripe customer ID for invoicing
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    )`,
+      (err) => {
+        if (err) {
+          console.error('Error creating user_contacts table:', err.message);
+          reject(err);
+        } else {
+          console.log('user_contacts table created/verified');
+          resolve();
+        }
+      },
+    );
+  });
+}
+
+function createUserLeadsTable() {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `CREATE TABLE IF NOT EXISTS user_leads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      status TEXT NOT NULL, -- Monitoring, Contacted, Negotiating, etc.
+      contact_id INTEGER,
+      watch_reference TEXT,
+      notes TEXT,
+      reminder_date TEXT, -- YYYY-MM-DD
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+      FOREIGN KEY (contact_id) REFERENCES user_contacts (id) ON DELETE SET NULL
+    )`,
+      (err) => {
+        if (err) {
+          console.error('Error creating user_leads table:', err.message);
+          reject(err);
+        } else {
+          console.log('user_leads table created/verified');
+          resolve();
+        }
+      },
+    );
+  });
+}
+
+function createUserCardsTable() {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `CREATE TABLE IF NOT EXISTS user_cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      contact_id INTEGER NOT NULL,
+      cardholder_name TEXT NOT NULL,
+      last4 TEXT NOT NULL,
+      expiry_month TEXT NOT NULL,
+      expiry_year TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+      FOREIGN KEY (contact_id) REFERENCES user_contacts (id) ON DELETE CASCADE
+    )`,
+      (err) => {
+        if (err) {
+          console.error('Error creating user_cards table:', err.message);
+          reject(err);
+        } else {
+          console.log('user_cards table created/verified');
+          resolve();
+        }
+      },
+    );
+  });
+}
+
+function createUserInvoicesTable() {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `CREATE TABLE IF NOT EXISTS user_invoices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      stripe_invoice_id TEXT UNIQUE NOT NULL,
+      contact_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft', -- draft, open, paid, void, uncollectible
+      total_amount REAL NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'usd',
+      due_date TEXT, -- YYYY-MM-DD
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+      FOREIGN KEY (contact_id) REFERENCES user_contacts (id) ON DELETE CASCADE
+    )`,
+      (err) => {
+        if (err) {
+          console.error('Error creating user_invoices table:', err.message);
+          reject(err);
+        } else {
+          console.log('user_invoices table created/verified');
+          resolve();
+        }
+      },
+    );
+  });
+}
+
+function createUserInvoiceItemsTable() {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `CREATE TABLE IF NOT EXISTS user_invoice_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      invoice_id INTEGER NOT NULL,
+      watch_id INTEGER,
+      description TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      unit_price REAL NOT NULL DEFAULT 0,
+      total_amount REAL NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+      FOREIGN KEY (invoice_id) REFERENCES user_invoices (id) ON DELETE CASCADE,
+      FOREIGN KEY (watch_id) REFERENCES user_watches (id) ON DELETE SET NULL
+    )`,
+      (err) => {
+        if (err) {
+          console.error('Error creating user_invoice_items table:', err.message);
+          reject(err);
+        } else {
+          console.log('user_invoice_items table created/verified');
+          resolve();
+        }
       },
     );
   });
@@ -430,9 +653,29 @@ function updateUserStatus(userId, status, callback = () => {}) {
   }
 }
 
+// Database cleanup function
+function closeDB() {
+  return new Promise((resolve, reject) => {
+    if (db) {
+      db.close((err) => {
+        if (err) {
+          console.error('Error closing database:', err.message);
+          reject(err);
+        } else {
+          console.log('Database connection closed');
+          resolve();
+        }
+      });
+    } else {
+      resolve();
+    }
+  });
+}
+
 module.exports = {
   db,
   initDB,
+  closeDB,
   addUser,
   findUser,
   verifyPassword,

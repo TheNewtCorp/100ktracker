@@ -40,31 +40,31 @@ async function startServer() {
     });
 
     // Graceful shutdown handling
-    const gracefulShutdown = async (signal) => {
-      console.log(`${signal} received, shutting down gracefully`);
-      
-      // Close database connection first
+    process.on('SIGTERM', async () => {
+      console.log('SIGTERM received, shutting down gracefully');
       try {
         await closeDB();
       } catch (error) {
-        console.error('Error closing database:', error);
+        console.error('Error closing database:', error.message);
       }
-      
-      // Then close the server
       server.close(() => {
         console.log('Server closed');
         process.exit(0);
       });
-      
-      // Force exit after 10 seconds if server doesn't close
-      setTimeout(() => {
-        console.error('Could not close connections in time, forcefully shutting down');
-        process.exit(1);
-      }, 10000);
-    };
+    });
 
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGINT', async () => {
+      console.log('SIGINT received, shutting down gracefully');
+      try {
+        await closeDB();
+      } catch (error) {
+        console.error('Error closing database:', error.message);
+      }
+      server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    });
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
@@ -122,47 +122,12 @@ app.get('/', (req, res) => {
 });
 
 // Health check endpoint for deployment monitoring
-app.get('/health', async (req, res) => {
-  try {
-    // Basic health check
-    const healthData = {
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-      env: process.env.NODE_ENV || 'development'
-    };
-
-    // Quick database connectivity check
-    const { db } = require('./db');
-    if (db) {
-      db.get('SELECT 1', (err) => {
-        if (err) {
-          console.error('Health check database error:', err);
-          return res.status(503).json({
-            status: 'unhealthy',
-            error: 'Database connection failed',
-            timestamp: new Date().toISOString()
-          });
-        }
-        
-        res.status(200).json(healthData);
-      });
-    } else {
-      // Database not initialized yet, but server is running
-      res.status(200).json({
-        ...healthData,
-        note: 'Database not yet initialized'
-      });
-    }
-  } catch (error) {
-    console.error('Health check error:', error);
-    res.status(503).json({
-      status: 'unhealthy',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
 });
 
 // Debug endpoints for production troubleshooting
