@@ -1,6 +1,14 @@
 #!/usr/bin/env node
 
-const { db, addUser, findUser } = require('./db');
+const {
+  addUser,
+  addEnhancedUser,
+  findUser,
+  findUserByEmail,
+  updateInvitationTimestamp,
+  initDB,
+  closeDB,
+} = require('./db');
 const emailService = require('./email-service');
 const crypto = require('crypto');
 const path = require('path');
@@ -46,36 +54,6 @@ function isValidUsername(username) {
   return usernameRegex.test(username);
 }
 
-// Add enhanced user with additional fields
-function addEnhancedUser(username, password, email, invitedBy = 1, callback) {
-  const bcrypt = require('bcryptjs');
-  const hashed = bcrypt.hashSync(password, 10);
-
-  const query = `
-    INSERT INTO users (
-      username, 
-      hashed_password, 
-      email, 
-      invited_by, 
-      invitation_sent_at, 
-      status, 
-      temporary_password
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  const values = [
-    username,
-    hashed,
-    email,
-    invitedBy,
-    new Date().toISOString(),
-    'pending',
-    1, // true - indicates this is a temporary password
-  ];
-
-  db.run(query, values, callback);
-}
-
 // Create user with enhanced tracking
 async function createUser(options) {
   return new Promise((resolve, reject) => {
@@ -117,7 +95,7 @@ async function createUser(options) {
       }
 
       // Check for duplicate email
-      db.get('SELECT * FROM users WHERE email = ?', [options.email], (err, existingEmail) => {
+      findUserByEmail(options.email, (err, existingEmail) => {
         if (err) {
           reject(new Error(`Database error: ${err.message}`));
           return;
@@ -192,6 +170,12 @@ async function main() {
   }
 
   try {
+    console.log('🚀 Initializing database...\n');
+
+    // Initialize database first
+    await initDB();
+    console.log('✅ Database initialized successfully\n');
+
     console.log('🚀 Creating new user...\n');
 
     const result = await createUser(options);
@@ -228,7 +212,7 @@ async function main() {
           }
 
           // Update database to track email sending
-          db.run('UPDATE users SET invitation_sent_at = CURRENT_TIMESTAMP WHERE id = ?', [result.userId], (err) => {
+          updateInvitationTimestamp(result.userId, (err) => {
             if (err) console.error('Warning: Failed to update invitation timestamp:', err.message);
           });
         }
@@ -258,11 +242,11 @@ async function main() {
     process.exit(1);
   } finally {
     // Close database connection
-    db.close((err) => {
-      if (err) {
-        console.error('Error closing database:', err.message);
-      }
-    });
+    try {
+      await closeDB();
+    } catch (err) {
+      console.error('Error closing database:', err.message);
+    }
   }
 }
 

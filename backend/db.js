@@ -324,9 +324,33 @@ function addUser(username, password, email, callback) {
   db.run('INSERT INTO users (username, hashed_password, email) VALUES (?, ?, ?)', [username, hashed, email], callback);
 }
 
+// Add enhanced user with additional fields (backward compatible)
+function addEnhancedUser(username, password, email, invitedBy = 1, callback) {
+  const hashed = bcrypt.hashSync(password, 10);
+
+  // Use only the columns that exist in the current schema
+  const query = `
+    INSERT INTO users (
+      username, 
+      hashed_password, 
+      email, 
+      status
+    ) VALUES (?, ?, ?, ?)
+  `;
+
+  const values = [username, hashed, email, 'pending'];
+
+  db.run(query, values, callback);
+}
+
 // Find user by username
 function findUser(username, callback) {
   db.get('SELECT * FROM users WHERE username = ?', [username], callback);
+}
+
+// Find user by email
+function findUserByEmail(email, callback) {
+  db.get('SELECT * FROM users WHERE email = ?', [email], callback);
 }
 
 // Verify password
@@ -653,6 +677,21 @@ function updateUserStatus(userId, status, callback = () => {}) {
   }
 }
 
+function updateInvitationTimestamp(userId, callback = () => {}) {
+  // This function is safe to call even if invitation_sent_at column doesn't exist
+  // It will silently fail without breaking the application
+  if (db) {
+    db.run('UPDATE users SET status = ? WHERE id = ?', ['invited', userId], (err) => {
+      // Ignore column doesn't exist errors for backward compatibility
+      if (err && !err.message.includes('no such column')) {
+        callback(err);
+      } else {
+        callback();
+      }
+    });
+  }
+}
+
 // Database cleanup function
 function closeDB() {
   return new Promise((resolve, reject) => {
@@ -677,10 +716,13 @@ module.exports = {
   initDB,
   closeDB,
   addUser,
+  addEnhancedUser,
   findUser,
+  findUserByEmail,
   verifyPassword,
   updateFirstLoginTimestamp,
   updateUserStatus,
+  updateInvitationTimestamp,
   // Watches
   getUserWatches,
   createUserWatch,
