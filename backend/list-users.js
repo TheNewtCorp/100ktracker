@@ -1,32 +1,38 @@
 #!/usr/bin/env node
 
-const { db } = require('./db');
+const { initDB, closeDB } = require('./db');
+
+// Get all users helper function
+function getAllUsers(callback) {
+  const { db } = require('./db');
+  if (!db) {
+    return callback(new Error('Database not initialized'));
+  }
+
+  const query = `
+    SELECT 
+      u.id,
+      u.username,
+      u.email,
+      u.status,
+      u.created_at,
+      u.first_login_at
+    FROM users u
+    ORDER BY u.created_at DESC
+  `;
+
+  db.all(query, [], callback);
+}
 
 // List all users with their details
 function listUsers() {
   return new Promise((resolve, reject) => {
-    const query = `
-      SELECT 
-        u.id,
-        u.username,
-        u.email,
-        u.status,
-        u.temporary_password,
-        u.created_at,
-        u.invitation_sent_at,
-        u.first_login_at,
-        invited.username as invited_by_username
-      FROM users u
-      LEFT JOIN users invited ON u.invited_by = invited.id
-      ORDER BY u.created_at DESC
-    `;
-
-    db.all(query, [], (err, rows) => {
+    getAllUsers((err, users) => {
       if (err) {
         reject(err);
-      } else {
-        resolve(rows);
+        return;
       }
+      resolve(users);
     });
   });
 }
@@ -146,6 +152,9 @@ async function main() {
   }
 
   try {
+    // Initialize database first
+    await initDB();
+
     const users = await listUsers();
 
     // Filter by status if specified
@@ -161,11 +170,11 @@ async function main() {
     process.exit(1);
   } finally {
     // Close database connection
-    db.close((err) => {
-      if (err) {
-        console.error('Error closing database:', err.message);
-      }
-    });
+    try {
+      await closeDB();
+    } catch (err) {
+      console.error('Error closing database:', err.message);
+    }
   }
 }
 
