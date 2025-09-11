@@ -74,7 +74,13 @@ class EmailService {
 
   // Generate invitation email template
   generateInvitationEmail(userData) {
-    const { username, email, password, temporaryPassword, appUrl = 'http://localhost:5173' } = userData;
+    // Always use production URL for email links, never localhost
+    const productionUrl =
+      process.env.NODE_ENV === 'production'
+        ? 'https://100ktracker.com'
+        : process.env.APP_URL || 'https://100ktracker.com';
+
+    const { username, email, password, temporaryPassword, appUrl = productionUrl } = userData;
 
     const subject = 'Welcome to 100K Tracker - Your Account is Ready!';
 
@@ -374,7 +380,12 @@ The 100K Tracker Team
       throw new Error('Email service not properly configured');
     }
 
-    const resetUrl = `${process.env.APP_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+    // Always use production URL for email links
+    const productionUrl =
+      process.env.NODE_ENV === 'production'
+        ? 'https://100ktracker.com'
+        : process.env.APP_URL || 'https://100ktracker.com';
+    const resetUrl = `${productionUrl}/reset-password?token=${resetToken}`;
 
     const mailOptions = {
       from: `"100K Tracker" <${adminEmail}>`,

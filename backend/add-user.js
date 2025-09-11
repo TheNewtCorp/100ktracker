@@ -79,8 +79,9 @@ async function createUser(options) {
       return;
     }
 
-    // Generate password if not provided
+    // Use provided password or generate one
     const password = options.password || generatePassword();
+    const isCustomPassword = !!options.password;
 
     // Check if user already exists
     findUser(options.username, (err, existingUser) => {
@@ -118,7 +119,7 @@ async function createUser(options) {
             username: options.username,
             email: options.email,
             password: password,
-            temporaryPassword: !options.password,
+            temporaryPassword: !isCustomPassword,
           });
         });
       });
@@ -139,24 +140,30 @@ Required:
   --email=<string>        Valid email address
 
 Optional:
-  --password=<string>     Custom password (if not provided, generates secure random password)
+  --password=<string>     🔑 Set custom password (RECOMMENDED for production)
   --generate-password     Force generate random password even if --password provided
   --no-email             Skip sending invitation email
   --send-email           Force send email even if email service not configured
   --help                  Show this help message
 
 Examples:
-  node add-user.js --username=john_doe --email=john@example.com
-  node add-user.js --username=jane_smith --email=jane@watchdealers.com --password=MySecure123!
-  node add-user.js --username=bob_trader --email=bob@traders.com --generate-password
-  node add-user.js --username=test_user --email=test@example.com --no-email
+  🎯 Production (with custom password):
+    node add-user.js --username=steve_adinson --email=steve@finewatches.com --password="StevesSecurePass123!"
+    
+  🔀 Auto-generated password:
+    node add-user.js --username=john_doe --email=john@example.com
+    
+  🚫 No email notification:
+    node add-user.js --username=test_user --email=test@example.com --password="TestPass123!" --no-email
 
 Notes:
-  - Generated passwords are 12 characters with mixed case, numbers, and symbols
-  - Users are created with 'pending' status and must change password on first login
-  - All user data is isolated per user (watches, contacts, leads, invoices)
-  - Email invitations are sent automatically unless --no-email is specified
-  - Configure email settings in .env file for production use
+  - 🔑 Using --password is RECOMMENDED when creating users for production
+  - 🎲 Generated passwords are 12 characters with mixed case, numbers, and symbols  
+  - 👤 Users are created with 'pending' status and must login to activate account
+  - 🗂️ All user data is isolated per user (watches, contacts, leads, invoices)
+  - 📧 Email invitations are sent automatically unless --no-email is specified
+  - ⚙️ Configure email settings in .env file for production use
+  - 🌐 Email links automatically use https://100ktracker.com in production
   `);
 }
 
@@ -188,9 +195,13 @@ async function main() {
     console.log(`   Status: pending`);
 
     if (result.temporaryPassword) {
-      console.log('\n🔐 Temporary Password:');
+      console.log('\n🔐 Generated Password (Temporary):');
       console.log(`   Password: ${result.password}`);
       console.log('   ⚠️  User must change password on first login');
+    } else {
+      console.log('\n🔑 Custom Password Set:');
+      console.log(`   Password: ${result.password}`);
+      console.log('   ✅ User can login with this password immediately');
     }
 
     // Send invitation email unless --no-email is specified
