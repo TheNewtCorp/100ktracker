@@ -72,12 +72,12 @@ class EmailService {
     return this.initialized && this.transporter;
   }
 
-    // Generate invitation email template
+  // Generate invitation email template
   generateInvitationEmail(userData) {
     // Always use production URL for email links, never localhost
     // This ensures invitation emails always point to the live site
     const productionUrl = 'https://100ktracker.com';
-    
+
     const { username, email, password, temporaryPassword, appUrl = productionUrl } = userData;
 
     const subject = 'Welcome to 100K Tracker - Your Account is Ready!';
