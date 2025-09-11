@@ -1,7 +1,14 @@
 // Express routes for login and registration
 const express = require('express');
 const router = express.Router();
-const { addUser, findUser, verifyPassword, updateFirstLoginTimestamp, updateUserStatus } = require('./db');
+const {
+  addUser,
+  findUser,
+  verifyPassword,
+  updateFirstLoginTimestamp,
+  updateUserStatus,
+  updateUsername,
+} = require('./db');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
@@ -95,6 +102,53 @@ router.get('/me', authenticateJWT, (req, res) => {
   findUser(req.user.username, (err, user) => {
     if (err || !user) return res.status(404).json({ error: 'User not found' });
     res.json({ id: user.id, username: user.username, email: user.email, created_at: user.created_at });
+  });
+});
+
+// Admin endpoint to update username (should be protected with admin auth in production)
+router.put('/admin/update-username', (req, res) => {
+  const { oldUsername, newUsername } = req.body;
+
+  if (!oldUsername || !newUsername) {
+    return res.status(400).json({ error: 'Missing oldUsername or newUsername' });
+  }
+
+  // Check if old user exists
+  findUser(oldUsername, (err, user) => {
+    if (err) {
+      console.error('Database error:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: `User "${oldUsername}" not found` });
+    }
+
+    // Check if new username already exists
+    findUser(newUsername, (err, existingUser) => {
+      if (err) {
+        console.error('Database error:', err);
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      if (existingUser) {
+        return res.status(400).json({ error: `Username "${newUsername}" already exists` });
+      }
+
+      // Update the username
+      updateUsername(oldUsername, newUsername, (err) => {
+        if (err) {
+          console.error('Error updating username:', err);
+          return res.status(500).json({ error: 'Failed to update username' });
+        }
+
+        res.json({
+          message: `Successfully updated username from "${oldUsername}" to "${newUsername}"`,
+          userId: user.id,
+          email: user.email,
+        });
+      });
+    });
   });
 });
 
