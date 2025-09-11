@@ -86,7 +86,9 @@ const corsOptions = {
       'http://localhost:5173', // Vite dev server
       'http://localhost:4173', // Vite preview
       'http://localhost:3000', // Alternative dev server
-      'https://100ktracker.netlify.app', // Production frontend
+      'https://100ktracker.netlify.app', // Original Netlify frontend
+      'https://100ktracker.com', // Custom domain
+      'https://www.100ktracker.com', // Custom domain with www
       'https://netlify.app', // Netlify preview deployments
     ];
 
