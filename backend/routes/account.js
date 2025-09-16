@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const { db } = require('../db');
+const { db, ensureDbConnection, initDB } = require('../db');
 const { authenticateJWT } = require('../middleware');
 
 // Get user account information
@@ -128,6 +128,12 @@ router.get('/stripe', authenticateJWT, async (req, res) => {
   try {
     const userId = req.user.id;
 
+    // Ensure database connection is available
+    await ensureDbConnection();
+    if (!db) {
+      await initDB();
+    }
+
     const user = await new Promise((resolve, reject) => {
       db.get('SELECT stripe_secret_key, stripe_publishable_key FROM users WHERE id = ?', [userId], (err, row) => {
         if (err) reject(err);
@@ -168,6 +174,12 @@ router.put('/stripe', authenticateJWT, async (req, res) => {
       return res.status(400).json({ error: 'Invalid publishable key format' });
     }
 
+    // Ensure database connection is available
+    await ensureDbConnection();
+    if (!db) {
+      await initDB();
+    }
+
     // TODO: In production, encrypt the secret key before storing
     await new Promise((resolve, reject) => {
       db.run(
@@ -191,6 +203,12 @@ router.put('/stripe', authenticateJWT, async (req, res) => {
 router.delete('/stripe', authenticateJWT, async (req, res) => {
   try {
     const userId = req.user.id;
+
+    // Ensure database connection is available
+    await ensureDbConnection();
+    if (!db) {
+      await initDB();
+    }
 
     await new Promise((resolve, reject) => {
       db.run(
