@@ -78,6 +78,10 @@ router.put('/password', authenticateJWT, async (req, res) => {
       return res.status(400).json({ error: 'New password must be at least 6 characters long' });
     }
 
+    if (!/[^A-Za-z0-9]/.test(newPassword)) {
+      return res.status(400).json({ error: 'New password must contain at least one special character' });
+    }
+
     // Get current password hash
     const user = await new Promise((resolve, reject) => {
       db.get('SELECT hashed_password FROM users WHERE id = ?', [userId], (err, row) => {
