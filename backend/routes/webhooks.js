@@ -10,6 +10,7 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
   try {
     // Note: In production, you should verify the webhook signature
     // For now, we'll parse the event directly
+    //testing deployment to see if users still get wiped after each deployment
     event = JSON.parse(req.body);
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);
