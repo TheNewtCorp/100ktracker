@@ -83,7 +83,9 @@ function createUserTable() {
       email TEXT,
       first_login_at DATETIME,
       status TEXT DEFAULT 'active',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      stripe_secret_key TEXT,
+      stripe_publishable_key TEXT
     )`,
       (err) => {
         if (err) {
@@ -113,17 +115,103 @@ function createUserTable() {
                   reject(err);
                 } else {
                   console.log('Default admin user created');
-                  resolve();
+                  // Run migration to add Stripe columns if they don't exist
+                  migrateStripeColumns()
+                    .then(() => {
+                      resolve();
+                    })
+                    .catch((migrationErr) => {
+                      console.error('Error during Stripe columns migration:', migrationErr.message);
+                      reject(migrationErr);
+                    });
                 }
               },
             );
           } else {
             console.log('Admin user already exists');
-            resolve();
+            // Run migration to add Stripe columns if they don't exist
+            migrateStripeColumns()
+              .then(() => {
+                resolve();
+              })
+              .catch((migrationErr) => {
+                console.error('Error during Stripe columns migration:', migrationErr.message);
+                reject(migrationErr);
+              });
           }
         });
       },
     );
+  });
+}
+
+// Migrate existing databases to add Stripe columns if they don't exist
+function migrateStripeColumns() {
+  return new Promise((resolve, reject) => {
+    // Check if stripe_secret_key column exists
+    db.get('PRAGMA table_info(users)', (err, result) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      // Get all column information
+      db.all('PRAGMA table_info(users)', (err, columns) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        const hasStripeSecretKey = columns.some((col) => col.name === 'stripe_secret_key');
+        const hasStripePublishableKey = columns.some((col) => col.name === 'stripe_publishable_key');
+
+        const migrations = [];
+
+        if (!hasStripeSecretKey) {
+          migrations.push(
+            new Promise((resolveCol, rejectCol) => {
+              db.run('ALTER TABLE users ADD COLUMN stripe_secret_key TEXT', (err) => {
+                if (err) {
+                  console.error('Error adding stripe_secret_key column:', err.message);
+                  rejectCol(err);
+                } else {
+                  console.log('Added stripe_secret_key column to users table');
+                  resolveCol();
+                }
+              });
+            }),
+          );
+        }
+
+        if (!hasStripePublishableKey) {
+          migrations.push(
+            new Promise((resolveCol, rejectCol) => {
+              db.run('ALTER TABLE users ADD COLUMN stripe_publishable_key TEXT', (err) => {
+                if (err) {
+                  console.error('Error adding stripe_publishable_key column:', err.message);
+                  rejectCol(err);
+                } else {
+                  console.log('Added stripe_publishable_key column to users table');
+                  resolveCol();
+                }
+              });
+            }),
+          );
+        }
+
+        if (migrations.length === 0) {
+          console.log('Stripe columns already exist in users table');
+          resolve();
+        } else {
+          Promise.all(migrations)
+            .then(() => {
+              console.log('Stripe columns migration completed successfully');
+              resolve();
+            })
+            .catch(reject);
+        }
+      });
+    });
   });
 }
 
