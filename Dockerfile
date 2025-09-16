@@ -14,7 +14,7 @@ RUN npm ci --only=production
 COPY backend/ .
 
 # Create necessary directories with proper permissions
-RUN mkdir -p db && chmod 755 db
+#RUN mkdir -p db && chmod 755 db
 
 # Expose port
 EXPOSE 3001

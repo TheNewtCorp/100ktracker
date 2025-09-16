@@ -54,7 +54,10 @@ jspm_packages/
 .yarn-integrity
 
 # Environment files
-.env
+.env*
+backend/db/*.sqlite
+backend/db/*.db
+node_modules
 .env.local
 .env.development.local
 .env.test.local

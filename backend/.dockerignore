@@ -76,6 +76,10 @@ jspm_packages/
 
 _.md
 .git
+db/*.sqlite
+db/*.db
+node_modules
+.env*
 .gitignore
 README.md
 USER_MANAGEMENT_PHASE_.md
