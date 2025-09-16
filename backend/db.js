@@ -7,6 +7,11 @@ const fs = require('fs');
 // Database connection variable (initialized later)
 let db = null;
 
+// getter function for db
+function getDb() {
+  return db;
+}
+
 // Ensure database connection is available
 function ensureDbConnection() {
   if (!db) {
@@ -757,6 +762,7 @@ function closeDB() {
 
 module.exports = {
   db,
+  getDb,
   initDB,
   closeDB,
   ensureDbConnection,
