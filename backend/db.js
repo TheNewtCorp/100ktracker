@@ -7,6 +7,14 @@ const fs = require('fs');
 // Database connection variable (initialized later)
 let db = null;
 
+// Ensure database connection is available
+function ensureDbConnection() {
+  if (!db) {
+    throw new Error('Database connection not available');
+  }
+  return true;
+}
+
 // Create users table if not exists
 function initDB() {
   return new Promise((resolve, reject) => {
@@ -356,7 +364,13 @@ function addEnhancedUser(username, password, email, invitedBy = 1, callback) {
 
 // Find user by username
 function findUser(username, callback) {
-  db.get('SELECT * FROM users WHERE username = ?', [username], callback);
+  try {
+    ensureDbConnection();
+    db.get('SELECT * FROM users WHERE username = ?', [username], callback);
+  } catch (error) {
+    console.error('Database connection error in findUser:', error.message);
+    callback(error);
+  }
 }
 
 // Find user by email
@@ -373,7 +387,13 @@ function verifyPassword(user, password) {
 
 // Watches
 function getUserWatches(userId, callback) {
-  db.all('SELECT * FROM user_watches WHERE user_id = ? ORDER BY in_date DESC', [userId], callback);
+  try {
+    ensureDbConnection();
+    db.all('SELECT * FROM user_watches WHERE user_id = ? ORDER BY in_date DESC', [userId], callback);
+  } catch (error) {
+    console.error('Database connection error in getUserWatches:', error.message);
+    callback(error);
+  }
 }
 
 function createUserWatch(userId, watchData, callback) {
@@ -519,7 +539,13 @@ function bulkDeleteUserWatches(userId, watchIds, callback) {
 
 // Contacts
 function getUserContacts(userId, callback) {
-  db.all('SELECT * FROM user_contacts WHERE user_id = ? ORDER BY first_name, last_name', [userId], callback);
+  try {
+    ensureDbConnection();
+    db.all('SELECT * FROM user_contacts WHERE user_id = ? ORDER BY first_name, last_name', [userId], callback);
+  } catch (error) {
+    console.error('Database connection error in getUserContacts:', error.message);
+    callback(error);
+  }
 }
 
 function createUserContact(userId, contactData, callback) {
@@ -733,6 +759,7 @@ module.exports = {
   db,
   initDB,
   closeDB,
+  ensureDbConnection,
   addUser,
   addEnhancedUser,
   findUser,

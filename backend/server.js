@@ -40,31 +40,40 @@ async function startServer() {
     });
 
     // Graceful shutdown handling
-    process.on('SIGTERM', async () => {
-      console.log('SIGTERM received, shutting down gracefully');
-      try {
-        await closeDB();
-      } catch (error) {
-        console.error('Error closing database:', error.message);
-      }
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-      });
-    });
+    let isShuttingDown = false;
 
-    process.on('SIGINT', async () => {
-      console.log('SIGINT received, shutting down gracefully');
-      try {
-        await closeDB();
-      } catch (error) {
-        console.error('Error closing database:', error.message);
+    const gracefulShutdown = async (signal) => {
+      if (isShuttingDown) {
+        console.log(`${signal} received again, forcing exit`);
+        process.exit(1);
       }
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
+
+      isShuttingDown = true;
+      global.isShuttingDown = true; // Set global flag for middleware
+      console.log(`${signal} received, shutting down gracefully`);
+
+      // Stop accepting new requests first
+      server.close(async () => {
+        console.log('Server stopped accepting new connections');
+        try {
+          await closeDB();
+          console.log('Database closed successfully');
+          process.exit(0);
+        } catch (error) {
+          console.error('Error closing database:', error.message);
+          process.exit(1);
+        }
       });
-    });
+
+      // Force exit after 10 seconds if graceful shutdown fails
+      setTimeout(() => {
+        console.error('Graceful shutdown timeout, forcing exit');
+        process.exit(1);
+      }, 10000);
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
@@ -106,6 +115,24 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+// Middleware to reject requests during shutdown
+app.use((req, res, next) => {
+  if (req.url === '/health') {
+    // Always allow health checks
+    return next();
+  }
+
+  // Check if shutdown is in progress
+  if (global.isShuttingDown) {
+    return res.status(503).json({
+      error: 'Server is shutting down',
+      message: 'Please retry your request',
+    });
+  }
+
+  next();
+});
+
 // Webhook routes need raw body parsing, so add them before express.json()
 app.use('/api/webhooks', webhookRoutes);
 
@@ -125,8 +152,12 @@ app.get('/', (req, res) => {
 
 // Health check endpoint for deployment monitoring
 app.get('/health', (req, res) => {
+  const { db } = require('./db');
+  const dbStatus = db ? 'connected' : 'disconnected';
+
   res.status(200).json({
     status: 'healthy',
+    database: dbStatus,
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
   });

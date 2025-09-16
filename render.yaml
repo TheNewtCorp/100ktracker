@@ -15,12 +15,12 @@ services:
       - key: APP_URL
         value: https://100ktracker.netlify.app
     healthCheckPath: /health
-    healthCheckDelay: 90
-    healthCheckPeriod: 10
-    healthCheckTimeout: 10
-    healthCheckFailureThreshold: 10
+    healthCheckDelay: 30
+    healthCheckPeriod: 30
+    healthCheckTimeout: 5
+    healthCheckFailureThreshold: 3
     autoDeploy: true
     disk:
       name: 100ktracker-data
       mountPath: /app/db
-      sizeGB: 1
+      sizeGB: 10
