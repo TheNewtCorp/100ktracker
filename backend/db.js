@@ -16,12 +16,23 @@ function initDB() {
 
       console.log('Initializing database...');
       console.log(`Using database path: ${dbPath}`);
+      console.log(`NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
 
       // Ensure database directory exists
       const dbDir = path.dirname(dbPath);
       if (!fs.existsSync(dbDir)) {
         console.log(`Creating database directory: ${dbDir}`);
         fs.mkdirSync(dbDir, { recursive: true });
+      }
+
+      // Check if database file already exists (persistence check)
+      const dbExists = fs.existsSync(dbPath);
+      console.log(`Database file exists: ${dbExists}`);
+
+      if (dbExists) {
+        const stats = fs.statSync(dbPath);
+        console.log(`Existing database size: ${stats.size} bytes`);
+        console.log(`Last modified: ${stats.mtime}`);
       }
 
       // Create database connection only when needed

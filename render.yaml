@@ -11,7 +11,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: DATABASE_PATH
-        value: /app/db/database.sqlite
+        value: /app/db/users.sqlite
       - key: APP_URL
         value: https://100ktracker.netlify.app
     healthCheckPath: /health

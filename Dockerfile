@@ -13,8 +13,8 @@ RUN npm ci --only=production
 # Copy backend application code
 COPY backend/ .
 
-# Create necessary directories
-RUN mkdir -p db
+# Create necessary directories with proper permissions
+RUN mkdir -p db && chmod 755 db
 
 # Expose port
 EXPOSE 3001
