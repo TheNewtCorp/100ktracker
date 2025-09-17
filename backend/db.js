@@ -85,7 +85,13 @@ function createUserTable() {
       status TEXT DEFAULT 'active',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       stripe_secret_key TEXT,
-      stripe_publishable_key TEXT
+      stripe_publishable_key TEXT,
+      subscription_tier TEXT DEFAULT NULL,
+      subscription_status TEXT DEFAULT 'free',
+      subscription_price REAL DEFAULT 0,
+      subscription_start_date DATETIME DEFAULT NULL,
+      subscription_end_date DATETIME DEFAULT NULL,
+      stripe_subscription_id TEXT DEFAULT NULL
     )`,
       (err) => {
         if (err) {
@@ -120,6 +126,7 @@ function createUserTable() {
                     migrateStripeColumns(),
                     migrateInvoicesTableColumns(),
                     migrateInvoiceContactConstraint(),
+                    migrateSubscriptionColumns(),
                   ])
                     .then(() => {
                       resolve();
@@ -134,7 +141,12 @@ function createUserTable() {
           } else {
             console.log('Admin user already exists');
             // Run migrations
-            Promise.all([migrateStripeColumns(), migrateInvoicesTableColumns(), migrateInvoiceContactConstraint()])
+            Promise.all([
+              migrateStripeColumns(),
+              migrateInvoicesTableColumns(),
+              migrateInvoiceContactConstraint(),
+              migrateSubscriptionColumns(),
+            ])
               .then(() => {
                 resolve();
               })
@@ -404,6 +416,79 @@ function migrateInvoiceContactConstraint() {
   });
 }
 
+// Migrate users table to add subscription columns
+function migrateSubscriptionColumns() {
+  return new Promise((resolve, reject) => {
+    // Check if users table exists and get its structure
+    db.all('PRAGMA table_info(users)', (err, columns) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      if (columns.length === 0) {
+        console.log('users table does not exist, will be created by createAllTables');
+        resolve();
+        return;
+      }
+
+      const existingColumns = columns.map((col) => col.name);
+      const neededColumns = [
+        {
+          name: 'subscription_tier',
+          type: 'TEXT DEFAULT NULL',
+          description: 'Subscription tier: platinum, operandi, or free',
+        },
+        {
+          name: 'subscription_status',
+          type: "TEXT DEFAULT 'free'",
+          description: 'Subscription status: active, past_due, canceled, free',
+        },
+        { name: 'subscription_price', type: 'REAL DEFAULT 0', description: 'Monthly subscription price in USD' },
+        { name: 'subscription_start_date', type: 'DATETIME DEFAULT NULL', description: 'When subscription started' },
+        { name: 'subscription_end_date', type: 'DATETIME DEFAULT NULL', description: 'When subscription ends/ended' },
+        {
+          name: 'stripe_subscription_id',
+          type: 'TEXT DEFAULT NULL',
+          description: 'Stripe subscription ID for automated billing',
+        },
+      ];
+
+      const migrations = [];
+
+      for (const column of neededColumns) {
+        if (!existingColumns.includes(column.name)) {
+          migrations.push(
+            new Promise((resolveCol, rejectCol) => {
+              db.run(`ALTER TABLE users ADD COLUMN ${column.name} ${column.type}`, (err) => {
+                if (err) {
+                  console.error(`Error adding ${column.name} column:`, err.message);
+                  rejectCol(err);
+                } else {
+                  console.log(`Added ${column.name} column to users table`);
+                  resolveCol();
+                }
+              });
+            }),
+          );
+        }
+      }
+
+      if (migrations.length === 0) {
+        console.log('All required subscription columns already exist in users table');
+        resolve();
+      } else {
+        Promise.all(migrations)
+          .then(() => {
+            console.log('Subscription columns migration completed successfully');
+            resolve();
+          })
+          .catch(reject);
+      }
+    });
+  });
+}
+
 // Create all application tables
 function createAllTables() {
   return Promise.all([
@@ -658,6 +743,46 @@ function findUser(username, callback) {
 // Find user by email
 function findUserByEmail(email, callback) {
   db.get('SELECT * FROM users WHERE email = ?', [email], callback);
+}
+
+// Get all users (for admin purposes)
+function getAllUsers() {
+  return new Promise((resolve, reject) => {
+    try {
+      ensureDbConnection();
+      db.all('SELECT * FROM users ORDER BY username ASC', [], (err, rows) => {
+        if (err) {
+          console.error('Error getting all users:', err);
+          reject(err);
+        } else {
+          resolve(rows || []);
+        }
+      });
+    } catch (error) {
+      console.error('Database connection error in getAllUsers:', error.message);
+      reject(error);
+    }
+  });
+}
+
+// Get user by username (for admin purposes)
+function getUserByUsername(username) {
+  return new Promise((resolve, reject) => {
+    try {
+      ensureDbConnection();
+      db.get('SELECT * FROM users WHERE username = ?', [username], (err, row) => {
+        if (err) {
+          console.error('Error getting user by username:', err);
+          reject(err);
+        } else {
+          resolve(row);
+        }
+      });
+    } catch (error) {
+      console.error('Database connection error in getUserByUsername:', error.message);
+      reject(error);
+    }
+  });
 }
 
 // Verify password
@@ -1018,6 +1143,78 @@ function updateUsername(oldUsername, newUsername, callback = () => {}) {
   }
 }
 
+// Subscription management functions
+function getUserSubscription(userId, callback) {
+  if (db) {
+    db.get(
+      `SELECT subscription_tier, subscription_status, subscription_price, 
+              subscription_start_date, subscription_end_date, stripe_subscription_id 
+       FROM users WHERE id = ?`,
+      [userId],
+      callback,
+    );
+  } else {
+    callback(new Error('Database not initialized'), null);
+  }
+}
+
+function updateUserSubscription(userId, subscriptionData, callback = () => {}) {
+  const { tier, status, price, startDate, endDate, stripeSubscriptionId } = subscriptionData;
+
+  if (db) {
+    db.run(
+      `UPDATE users SET 
+        subscription_tier = ?, 
+        subscription_status = ?, 
+        subscription_price = ?,
+        subscription_start_date = ?,
+        subscription_end_date = ?,
+        stripe_subscription_id = ?
+      WHERE id = ?`,
+      [tier, status, price, startDate, endDate, stripeSubscriptionId, userId],
+      callback,
+    );
+  } else {
+    callback(new Error('Database not initialized'));
+  }
+}
+
+function setUserSubscriptionByUsername(username, subscriptionData, callback = () => {}) {
+  const { tier, status, price, startDate, endDate, stripeSubscriptionId } = subscriptionData;
+
+  if (db) {
+    db.run(
+      `UPDATE users SET 
+        subscription_tier = ?, 
+        subscription_status = ?, 
+        subscription_price = ?,
+        subscription_start_date = ?,
+        subscription_end_date = ?,
+        stripe_subscription_id = ?
+      WHERE username = ?`,
+      [tier, status, price, startDate, endDate, stripeSubscriptionId, username],
+      callback,
+    );
+  } else {
+    callback(new Error('Database not initialized'));
+  }
+}
+
+// Get subscription tier information
+function getSubscriptionTierInfo(tier) {
+  const tiers = {
+    platinum: { name: 'Platinum Tracker', price: 98, description: 'Premium watch tracking with advanced features' },
+    operandi: {
+      name: 'Operandi Challenge Tracker',
+      price: 80,
+      description: 'Enhanced tracking for serious collectors',
+    },
+    free: { name: 'Basic Plan', price: 0, description: 'Basic watch tracking functionality' },
+  };
+
+  return tiers[tier] || tiers['free'];
+}
+
 // Database cleanup function
 function closeDB() {
   return new Promise((resolve, reject) => {
@@ -1047,11 +1244,18 @@ module.exports = {
   addEnhancedUser,
   findUser,
   findUserByEmail,
+  getAllUsers,
+  getUserByUsername,
   verifyPassword,
   updateFirstLoginTimestamp,
   updateUserStatus,
   updateInvitationTimestamp,
   updateUsername,
+  // Subscriptions
+  getUserSubscription,
+  updateUserSubscription,
+  setUserSubscriptionByUsername,
+  getSubscriptionTierInfo,
   // Watches
   getUserWatches,
   createUserWatch,

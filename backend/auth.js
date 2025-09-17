@@ -8,6 +8,8 @@ const {
   updateFirstLoginTimestamp,
   updateUserStatus,
   updateUsername,
+  setUserSubscriptionByUsername,
+  getSubscriptionTierInfo,
 } = require('./db');
 const jwt = require('jsonwebtoken');
 
@@ -147,6 +149,91 @@ router.put('/admin/update-username', (req, res) => {
           userId: user.id,
           email: user.email,
         });
+      });
+    });
+  });
+});
+
+// Admin endpoint to set user subscription (CLI management)
+router.post('/admin/set-subscription', (req, res) => {
+  const { username, tier, status, price, startDate, endDate, stripeSubscriptionId } = req.body;
+
+  if (!username || !tier || !status) {
+    return res.status(400).json({
+      error: 'Missing required fields: username, tier, and status are required',
+    });
+  }
+
+  // Validate tier
+  const validTiers = ['platinum', 'operandi', 'free'];
+  if (!validTiers.includes(tier)) {
+    return res.status(400).json({
+      error: `Invalid tier "${tier}". Valid tiers are: ${validTiers.join(', ')}`,
+    });
+  }
+
+  // Validate status
+  const validStatuses = ['active', 'past_due', 'canceled', 'free'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({
+      error: `Invalid status "${status}". Valid statuses are: ${validStatuses.join(', ')}`,
+    });
+  }
+
+  // Validate dates if provided
+  if (startDate && isNaN(new Date(startDate).getTime())) {
+    return res.status(400).json({ error: 'Invalid start date format. Use YYYY-MM-DD' });
+  }
+
+  if (endDate && isNaN(new Date(endDate).getTime())) {
+    return res.status(400).json({ error: 'Invalid end date format. Use YYYY-MM-DD' });
+  }
+
+  // Check if user exists
+  findUser(username, (err, user) => {
+    if (err) {
+      console.error('Database error:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: `User "${username}" not found` });
+    }
+
+    // Get tier info for price if not provided
+    const tierInfo = getSubscriptionTierInfo(tier);
+    const effectivePrice = price !== undefined ? price : tierInfo.price;
+
+    const subscriptionData = {
+      tier,
+      status,
+      price: effectivePrice,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      stripeSubscriptionId: stripeSubscriptionId || null,
+    };
+
+    // Update subscription
+    setUserSubscriptionByUsername(username, subscriptionData, (err) => {
+      if (err) {
+        console.error('Error setting subscription:', err);
+        return res.status(500).json({ error: 'Failed to set subscription' });
+      }
+
+      res.json({
+        message: `Successfully set subscription for "${username}"`,
+        userId: user.id,
+        username: user.username,
+        email: user.email,
+        subscription: {
+          tier,
+          tierName: tierInfo.name,
+          status,
+          price: effectivePrice,
+          startDate,
+          endDate,
+          stripeSubscriptionId,
+        },
       });
     });
   });
