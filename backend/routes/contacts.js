@@ -12,16 +12,45 @@ const {
 } = require('../db');
 
 // Import Stripe helper functions
-const { db } = require('../db');
+const { db, getDb, initDB } = require('../db');
 
-// Function to get user's Stripe configuration
-async function getUserStripeConfig(userId) {
+// Helper function to get initialized database connection
+async function getInitializedDb() {
+  let currentDb = getDb();
+  if (!currentDb) {
+    await initDB();
+    currentDb = getDb();
+    if (!currentDb) {
+      throw new Error('Failed to initialize database');
+    }
+  }
+  return currentDb;
+}
+
+// Database wrapper functions with proper initialization
+async function dbGet(query, params) {
+  const currentDb = await getInitializedDb();
   return new Promise((resolve, reject) => {
-    db.get('SELECT stripe_secret_key, stripe_publishable_key FROM users WHERE id = ?', [userId], (err, row) => {
+    currentDb.get(query, params, (err, row) => {
       if (err) reject(err);
       else resolve(row);
     });
   });
+}
+
+async function dbRun(query, params) {
+  const currentDb = await getInitializedDb();
+  return new Promise((resolve, reject) => {
+    currentDb.run(query, params, function (err) {
+      if (err) reject(err);
+      else resolve({ lastID: this.lastID, changes: this.changes });
+    });
+  });
+}
+
+// Function to get user's Stripe configuration
+async function getUserStripeConfig(userId) {
+  return await dbGet('SELECT stripe_secret_key, stripe_publishable_key FROM users WHERE id = ?', [userId]);
 }
 
 // Function to create user-specific Stripe client
@@ -286,12 +315,7 @@ router.post('/:id/sync-stripe', authenticateJWT, async (req, res) => {
     }
 
     // Get contact details
-    const contact = await new Promise((resolve, reject) => {
-      db.get('SELECT * FROM user_contacts WHERE id = ? AND user_id = ?', [contactId, userId], (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
-    });
+    const contact = await dbGet('SELECT * FROM user_contacts WHERE id = ? AND user_id = ?', [contactId, userId]);
 
     if (!contact) {
       return res.status(404).json({ error: 'Contact not found' });
@@ -376,27 +400,21 @@ router.post('/:id/sync-stripe', authenticateJWT, async (req, res) => {
     });
 
     // Update contact with Stripe info
-    await new Promise((resolve, reject) => {
-      db.run(
-        `UPDATE user_contacts 
-         SET stripe_customer_id = ?, 
-             stripe_payment_methods = ?, 
-             stripe_default_payment_method = ?,
-             last_stripe_sync = CURRENT_TIMESTAMP
-         WHERE id = ? AND user_id = ?`,
-        [
-          stripeCustomer.id,
-          JSON.stringify(paymentMethods.data),
-          stripeCustomer.invoice_settings?.default_payment_method || null,
-          contactId,
-          userId,
-        ],
-        function (err) {
-          if (err) reject(err);
-          else resolve();
-        },
-      );
-    });
+    await dbRun(
+      `UPDATE user_contacts 
+       SET stripe_customer_id = ?, 
+           stripe_payment_methods = ?, 
+           stripe_default_payment_method = ?,
+           last_stripe_sync = CURRENT_TIMESTAMP
+       WHERE id = ? AND user_id = ?`,
+      [
+        stripeCustomer.id,
+        JSON.stringify(paymentMethods.data),
+        stripeCustomer.invoice_settings?.default_payment_method || null,
+        contactId,
+        userId,
+      ],
+    );
 
     res.json({
       message: 'Contact synced with Stripe successfully',
@@ -435,18 +453,12 @@ router.get('/:id/stripe-info', authenticateJWT, async (req, res) => {
     const contactId = req.params.id;
 
     // Get contact with Stripe info
-    const contact = await new Promise((resolve, reject) => {
-      db.get(
-        `SELECT stripe_customer_id, stripe_payment_methods, 
-                stripe_default_payment_method, last_stripe_sync
-         FROM user_contacts WHERE id = ? AND user_id = ?`,
-        [contactId, userId],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        },
-      );
-    });
+    const contact = await dbGet(
+      `SELECT stripe_customer_id, stripe_payment_methods, 
+              stripe_default_payment_method, last_stripe_sync
+       FROM user_contacts WHERE id = ? AND user_id = ?`,
+      [contactId, userId],
+    );
 
     if (!contact) {
       return res.status(404).json({ error: 'Contact not found' });
@@ -494,21 +506,15 @@ router.delete('/:id/stripe-sync', authenticateJWT, async (req, res) => {
     const contactId = req.params.id;
 
     // Clear Stripe integration data from contact
-    await new Promise((resolve, reject) => {
-      db.run(
-        `UPDATE user_contacts 
-         SET stripe_customer_id = NULL, 
-             stripe_payment_methods = NULL, 
-             stripe_default_payment_method = NULL,
-             last_stripe_sync = NULL
-         WHERE id = ? AND user_id = ?`,
-        [contactId, userId],
-        function (err) {
-          if (err) reject(err);
-          else resolve();
-        },
-      );
-    });
+    await dbRun(
+      `UPDATE user_contacts 
+       SET stripe_customer_id = NULL, 
+           stripe_payment_methods = NULL, 
+           stripe_default_payment_method = NULL,
+           last_stripe_sync = NULL
+       WHERE id = ? AND user_id = ?`,
+      [contactId, userId],
+    );
 
     res.json({ message: 'Stripe integration removed from contact' });
   } catch (error) {

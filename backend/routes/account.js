@@ -9,16 +9,10 @@ router.get('/profile', authenticateJWT, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const user = await new Promise((resolve, reject) => {
-      db.get(
-        'SELECT id, username, email, created_at, status, temporary_password, first_login_at FROM users WHERE id = ?',
-        [userId],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        },
-      );
-    });
+    const user = await dbGet(
+      'SELECT id, username, email, created_at, status, temporary_password, first_login_at FROM users WHERE id = ?',
+      [userId],
+    );
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -50,12 +44,7 @@ router.put('/profile', authenticateJWT, async (req, res) => {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    await new Promise((resolve, reject) => {
-      db.run('UPDATE users SET email = ? WHERE id = ?', [email || null, userId], function (err) {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    await dbRun('UPDATE users SET email = ? WHERE id = ?', [email || null, userId]);
 
     res.json({ message: 'Profile updated successfully' });
   } catch (error) {
@@ -83,12 +72,7 @@ router.put('/password', authenticateJWT, async (req, res) => {
     }
 
     // Get current password hash
-    const user = await new Promise((resolve, reject) => {
-      db.get('SELECT hashed_password FROM users WHERE id = ?', [userId], (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
-    });
+    const user = await dbGet('SELECT hashed_password FROM users WHERE id = ?', [userId]);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -105,16 +89,10 @@ router.put('/password', authenticateJWT, async (req, res) => {
     const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
 
     // Update password and clear temporary password flag
-    await new Promise((resolve, reject) => {
-      db.run(
-        'UPDATE users SET hashed_password = ?, temporary_password = 0 WHERE id = ?',
-        [hashedNewPassword, userId],
-        function (err) {
-          if (err) reject(err);
-          else resolve();
-        },
-      );
-    });
+    await dbRun('UPDATE users SET hashed_password = ?, temporary_password = 0 WHERE id = ?', [
+      hashedNewPassword,
+      userId,
+    ]);
 
     res.json({ message: 'Password changed successfully' });
   } catch (error) {

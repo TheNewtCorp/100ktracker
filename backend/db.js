@@ -115,13 +115,13 @@ function createUserTable() {
                   reject(err);
                 } else {
                   console.log('Default admin user created');
-                  // Run migration to add Stripe columns if they don't exist
-                  migrateStripeColumns()
+                  // Run migrations
+                  Promise.all([migrateStripeColumns(), migrateInvoicesTableColumns()])
                     .then(() => {
                       resolve();
                     })
                     .catch((migrationErr) => {
-                      console.error('Error during Stripe columns migration:', migrationErr.message);
+                      console.error('Error during migrations:', migrationErr.message);
                       reject(migrationErr);
                     });
                 }
@@ -129,13 +129,13 @@ function createUserTable() {
             );
           } else {
             console.log('Admin user already exists');
-            // Run migration to add Stripe columns if they don't exist
-            migrateStripeColumns()
+            // Run migrations
+            Promise.all([migrateStripeColumns(), migrateInvoicesTableColumns()])
               .then(() => {
                 resolve();
               })
               .catch((migrationErr) => {
-                console.error('Error during Stripe columns migration:', migrationErr.message);
+                console.error('Error during migrations:', migrationErr.message);
                 reject(migrationErr);
               });
           }
@@ -211,6 +211,67 @@ function migrateStripeColumns() {
             .catch(reject);
         }
       });
+    });
+  });
+}
+
+// Migrate existing user_invoices table to add missing columns for Stripe integration
+function migrateInvoicesTableColumns() {
+  return new Promise((resolve, reject) => {
+    // Check if user_invoices table exists and get its structure
+    db.all('PRAGMA table_info(user_invoices)', (err, columns) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      if (columns.length === 0) {
+        console.log('user_invoices table does not exist, will be created by createAllTables');
+        resolve();
+        return;
+      }
+
+      const existingColumns = columns.map((col) => col.name);
+      const neededColumns = [
+        { name: 'stripe_customer_id', type: 'TEXT' },
+        { name: 'description', type: 'TEXT' },
+        { name: 'hosted_invoice_url', type: 'TEXT' },
+        { name: 'invoice_pdf', type: 'TEXT' },
+        { name: 'finalized_at', type: 'DATETIME' },
+        { name: 'metadata', type: 'TEXT' },
+      ];
+
+      const migrations = [];
+
+      for (const column of neededColumns) {
+        if (!existingColumns.includes(column.name)) {
+          migrations.push(
+            new Promise((resolveCol, rejectCol) => {
+              db.run(`ALTER TABLE user_invoices ADD COLUMN ${column.name} ${column.type}`, (err) => {
+                if (err) {
+                  console.error(`Error adding ${column.name} column:`, err.message);
+                  rejectCol(err);
+                } else {
+                  console.log(`Added ${column.name} column to user_invoices table`);
+                  resolveCol();
+                }
+              });
+            }),
+          );
+        }
+      }
+
+      if (migrations.length === 0) {
+        console.log('All required invoice columns already exist');
+        resolve();
+      } else {
+        Promise.all(migrations)
+          .then(() => {
+            console.log('Invoice table migration completed successfully');
+            resolve();
+          })
+          .catch(reject);
+      }
     });
   });
 }

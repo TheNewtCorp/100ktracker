@@ -140,7 +140,7 @@ router.get('/', authenticateJWT, async (req, res) => {
           c.first_name as contact_first_name,
           c.last_name as contact_last_name,
           c.email as contact_email
-        FROM invoices i
+        FROM user_invoices i
         LEFT JOIN user_contacts c ON i.contact_id = c.id
         WHERE i.user_id = ?
         ORDER BY i.created_at DESC
@@ -165,16 +165,10 @@ router.get('/', authenticateJWT, async (req, res) => {
 
           // Update local status if it's different
           if (stripeInvoice.status !== localInvoice.status) {
-            await new Promise((resolve, reject) => {
-              db.run(
-                'UPDATE invoices SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                [stripeInvoice.status, localInvoice.id],
-                function (err) {
-                  if (err) reject(err);
-                  else resolve();
-                },
-              );
-            });
+            await dbRun('UPDATE user_invoices SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [
+              stripeInvoice.status,
+              localInvoice.id,
+            ]);
             localInvoice.status = stripeInvoice.status;
           }
         } catch (error) {
@@ -321,16 +315,10 @@ router.post('/', authenticateJWT, async (req, res) => {
       // Update contact with new Stripe customer ID if this was from a contact
       if (contactId) {
         try {
-          await new Promise((resolve, reject) => {
-            db.run(
-              'UPDATE user_contacts SET stripe_customer_id = ?, last_stripe_sync = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?',
-              [customer.id, contactId, userId],
-              function (err) {
-                if (err) reject(err);
-                else resolve();
-              },
-            );
-          });
+          await dbRun(
+            'UPDATE user_contacts SET stripe_customer_id = ?, last_stripe_sync = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?',
+            [customer.id, contactId, userId],
+          );
         } catch (error) {
           console.warn('Failed to update contact with Stripe customer ID:', error.message);
         }
@@ -394,59 +382,48 @@ router.post('/', authenticateJWT, async (req, res) => {
     }
 
     // Save invoice to local database for tracking
-    const localInvoiceId = await new Promise((resolve, reject) => {
-      db.run(
-        `
-        INSERT INTO invoices (
-          user_id, contact_id, stripe_invoice_id, stripe_customer_id, 
-          status, total_amount, currency, description, hosted_invoice_url,
-          invoice_pdf, finalized_at, metadata
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-        [
-          userId,
-          contactId || null,
-          finalizedInvoice.id,
-          customer.id,
-          finalizedInvoice.status,
-          totalAmount,
-          'usd',
-          notes || '',
-          finalizedInvoice.hosted_invoice_url,
-          finalizedInvoice.invoice_pdf,
-          new Date().toISOString(),
-          JSON.stringify(finalizedInvoice.metadata),
-        ],
-        function (err) {
-          if (err) reject(err);
-          else resolve(this.lastID);
-        },
-      );
-    });
+    const result = await dbRun(
+      `
+      INSERT INTO user_invoices (
+        user_id, contact_id, stripe_invoice_id, stripe_customer_id, 
+        status, total_amount, currency, description, hosted_invoice_url,
+        invoice_pdf, finalized_at, metadata
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+      [
+        userId,
+        contactId || null,
+        finalizedInvoice.id,
+        customer.id,
+        finalizedInvoice.status,
+        totalAmount,
+        'usd',
+        notes || '',
+        finalizedInvoice.hosted_invoice_url,
+        finalizedInvoice.invoice_pdf,
+        new Date().toISOString(),
+        JSON.stringify(finalizedInvoice.metadata),
+      ],
+    );
+    const localInvoiceId = result.lastID;
 
     // Save invoice items
     for (const item of items) {
-      await new Promise((resolve, reject) => {
-        db.run(
-          `
-          INSERT INTO invoice_items (
-            invoice_id, watch_id, description, quantity, unit_price, total_amount
-          ) VALUES (?, ?, ?, ?, ?, ?)
-        `,
-          [
-            localInvoiceId,
-            item.watch_id || null,
-            item.description,
-            item.quantity,
-            item.price,
-            item.price * item.quantity,
-          ],
-          function (err) {
-            if (err) reject(err);
-            else resolve();
-          },
-        );
-      });
+      await dbRun(
+        `
+        INSERT INTO invoice_items (
+          invoice_id, watch_id, description, quantity, unit_price, total_amount
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `,
+        [
+          localInvoiceId,
+          item.watch_id || null,
+          item.description,
+          item.quantity,
+          item.price,
+          item.price * item.quantity,
+        ],
+      );
     }
 
     res.json({

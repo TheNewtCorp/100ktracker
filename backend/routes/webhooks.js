@@ -1,6 +1,36 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../db');
+const { db, getDb, initDB } = require('../db');
+
+// Database wrapper functions for webhook operations
+async function getInitializedDb() {
+  const currentDb = getDb();
+  if (currentDb) {
+    return currentDb;
+  }
+  await initDB();
+  return getDb();
+}
+
+async function dbGet(query, params = []) {
+  const currentDb = await getInitializedDb();
+  return new Promise((resolve, reject) => {
+    currentDb.get(query, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+}
+
+async function dbRun(query, params = []) {
+  const currentDb = await getInitializedDb();
+  return new Promise((resolve, reject) => {
+    currentDb.run(query, params, function (err) {
+      if (err) reject(err);
+      else resolve(this);
+    });
+  });
+}
 
 // Webhook endpoint for Stripe events
 router.post('/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -155,49 +185,39 @@ async function handlePaymentIntentFailed(paymentIntent) {
 
 // Helper function to update invoice status in local database
 async function updateInvoiceStatus(stripeInvoiceId, status, additionalData = {}) {
-  return new Promise((resolve, reject) => {
+  try {
     // First, try to find if we have this invoice in our local database
-    db.get('SELECT id FROM invoices WHERE stripe_invoice_id = ?', [stripeInvoiceId], (err, row) => {
-      if (err) {
-        reject(err);
-        return;
-      }
+    const row = await dbGet('SELECT id FROM user_invoices WHERE stripe_invoice_id = ?', [stripeInvoiceId]);
 
-      if (row) {
-        // Update existing invoice
-        const updateData = {
-          status,
-          updated_at: new Date().toISOString(),
-          ...additionalData,
-        };
+    if (row) {
+      // Update existing invoice
+      const updateData = {
+        status,
+        updated_at: new Date().toISOString(),
+        ...additionalData,
+      };
 
-        const setClause = Object.keys(updateData)
-          .map((key) => `${key} = ?`)
-          .join(', ');
-        const values = Object.values(updateData);
-        values.push(row.id);
+      const setClause = Object.keys(updateData)
+        .map((key) => `${key} = ?`)
+        .join(', ');
+      const values = Object.values(updateData);
+      values.push(row.id);
 
-        db.run(`UPDATE invoices SET ${setClause} WHERE id = ?`, values, function (err) {
-          if (err) reject(err);
-          else resolve(this.changes);
-        });
-      } else {
-        // Invoice not in our database, could create a record or just log
-        console.log(`Invoice ${stripeInvoiceId} not found in local database, skipping update`);
-        resolve(0);
-      }
-    });
-  });
+      const result = await dbRun(`UPDATE user_invoices SET ${setClause} WHERE id = ?`, values);
+      return result.changes;
+    } else {
+      // Invoice not in our database, could create a record or just log
+      console.log(`Invoice ${stripeInvoiceId} not found in local database, skipping update`);
+      return 0;
+    }
+  } catch (error) {
+    throw error;
+  }
 }
 
 // Helper function to find invoice by payment intent
 async function findInvoiceByPaymentIntent(paymentIntentId) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM invoices WHERE payment_intent = ?', [paymentIntentId], (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+  return await dbGet('SELECT * FROM user_invoices WHERE payment_intent = ?', [paymentIntentId]);
 }
 
 module.exports = router;
