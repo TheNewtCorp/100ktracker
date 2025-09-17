@@ -1,12 +1,58 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../db');
+const { db, getDb, initDB } = require('../db');
 const { authenticateJWT } = require('../middleware');
+
+// Helper function to get initialized database connection
+async function getInitializedDb() {
+  let currentDb = getDb();
+  if (!currentDb) {
+    await initDB();
+    currentDb = getDb();
+    if (!currentDb) {
+      throw new Error('Failed to initialize database');
+    }
+  }
+  return currentDb;
+}
+
+// Database wrapper functions with proper initialization
+async function dbGet(query, params) {
+  const currentDb = await getInitializedDb();
+  return new Promise((resolve, reject) => {
+    currentDb.get(query, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+}
+
+async function dbAll(query, params) {
+  const currentDb = await getInitializedDb();
+  return new Promise((resolve, reject) => {
+    currentDb.all(query, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+}
+
+async function dbRun(query, params) {
+  const currentDb = await getInitializedDb();
+  return new Promise((resolve, reject) => {
+    currentDb.run(query, params, function (err) {
+      if (err) reject(err);
+      else resolve({ lastID: this.lastID, changes: this.changes });
+    });
+  });
+}
 
 // Function to get user's Stripe configuration
 async function getUserStripeConfig(userId) {
+  const currentDb = await getInitializedDb();
+
   return new Promise((resolve, reject) => {
-    db.get('SELECT stripe_secret_key, stripe_publishable_key FROM users WHERE id = ?', [userId], (err, row) => {
+    currentDb.get('SELECT stripe_secret_key, stripe_publishable_key FROM users WHERE id = ?', [userId], (err, row) => {
       if (err) reject(err);
       else resolve(row);
     });
@@ -15,8 +61,10 @@ async function getUserStripeConfig(userId) {
 
 // Function to get contact by ID with Stripe information
 async function getContactById(userId, contactId) {
+  const currentDb = await getInitializedDb();
+
   return new Promise((resolve, reject) => {
-    db.get(
+    currentDb.get(
       `SELECT *, stripe_customer_id, stripe_payment_methods, stripe_default_payment_method 
        FROM user_contacts WHERE id = ? AND user_id = ?`,
       [contactId, userId],
@@ -83,8 +131,9 @@ router.get('/', authenticateJWT, async (req, res) => {
     }
 
     // Get invoices from local database
+    const currentDb = await getInitializedDb();
     const localInvoices = await new Promise((resolve, reject) => {
-      db.all(
+      currentDb.all(
         `
         SELECT 
           i.*,
