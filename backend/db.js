@@ -116,7 +116,11 @@ function createUserTable() {
                 } else {
                   console.log('Default admin user created');
                   // Run migrations
-                  Promise.all([migrateStripeColumns(), migrateInvoicesTableColumns()])
+                  Promise.all([
+                    migrateStripeColumns(),
+                    migrateInvoicesTableColumns(),
+                    migrateInvoiceContactConstraint(),
+                  ])
                     .then(() => {
                       resolve();
                     })
@@ -130,7 +134,7 @@ function createUserTable() {
           } else {
             console.log('Admin user already exists');
             // Run migrations
-            Promise.all([migrateStripeColumns(), migrateInvoicesTableColumns()])
+            Promise.all([migrateStripeColumns(), migrateInvoicesTableColumns(), migrateInvoiceContactConstraint()])
               .then(() => {
                 resolve();
               })
@@ -271,6 +275,130 @@ function migrateInvoicesTableColumns() {
             resolve();
           })
           .catch(reject);
+      }
+    });
+  });
+}
+
+// Migrate contact_id constraint in user_invoices table to allow NULL values
+function migrateInvoiceContactConstraint() {
+  return new Promise((resolve, reject) => {
+    // Check if user_invoices table exists first
+    db.all('PRAGMA table_info(user_invoices)', (err, columns) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      if (columns.length === 0) {
+        console.log('user_invoices table does not exist, will be created by createAllTables');
+        resolve();
+        return;
+      }
+
+      // Check if contact_id column is NOT NULL
+      const contactIdColumn = columns.find((col) => col.name === 'contact_id');
+
+      if (!contactIdColumn) {
+        console.log('contact_id column does not exist, skipping constraint migration');
+        resolve();
+        return;
+      }
+
+      // SQLite doesn't support ALTER COLUMN directly, so we need to recreate the table
+      // if the column is currently NOT NULL
+      if (contactIdColumn.notnull === 1) {
+        console.log('Migrating user_invoices table to allow NULL contact_id...');
+
+        // Create a transaction to safely migrate the table
+        db.serialize(() => {
+          db.run('BEGIN TRANSACTION', (err) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+
+            // Create new table with nullable contact_id
+            db.run(
+              `
+              CREATE TABLE user_invoices_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                stripe_invoice_id TEXT UNIQUE NOT NULL,
+                contact_id INTEGER, -- Made nullable
+                status TEXT NOT NULL DEFAULT 'draft',
+                total_amount REAL NOT NULL DEFAULT 0,
+                currency TEXT NOT NULL DEFAULT 'usd',
+                due_date TEXT,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                stripe_customer_id TEXT,
+                description TEXT,
+                hosted_invoice_url TEXT,
+                invoice_pdf TEXT,
+                finalized_at DATETIME,
+                metadata TEXT,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (contact_id) REFERENCES user_contacts (id) ON DELETE CASCADE
+              )
+            `,
+              (err) => {
+                if (err) {
+                  db.run('ROLLBACK');
+                  reject(err);
+                  return;
+                }
+
+                // Copy data from old table to new table
+                db.run(
+                  `
+                INSERT INTO user_invoices_new 
+                SELECT * FROM user_invoices
+              `,
+                  (err) => {
+                    if (err) {
+                      db.run('ROLLBACK');
+                      reject(err);
+                      return;
+                    }
+
+                    // Drop old table
+                    db.run('DROP TABLE user_invoices', (err) => {
+                      if (err) {
+                        db.run('ROLLBACK');
+                        reject(err);
+                        return;
+                      }
+
+                      // Rename new table to original name
+                      db.run('ALTER TABLE user_invoices_new RENAME TO user_invoices', (err) => {
+                        if (err) {
+                          db.run('ROLLBACK');
+                          reject(err);
+                          return;
+                        }
+
+                        // Commit the transaction
+                        db.run('COMMIT', (err) => {
+                          if (err) {
+                            reject(err);
+                          } else {
+                            console.log('Successfully migrated user_invoices table to allow NULL contact_id');
+                            resolve();
+                          }
+                        });
+                      });
+                    });
+                  },
+                );
+              },
+            );
+          });
+        });
+      } else {
+        console.log('user_invoices.contact_id already allows NULL values');
+        resolve();
       }
     });
   });
@@ -437,7 +565,7 @@ function createUserInvoicesTable() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       stripe_invoice_id TEXT UNIQUE NOT NULL,
-      contact_id INTEGER NOT NULL,
+      contact_id INTEGER, -- Made nullable to support manual customers
       status TEXT NOT NULL DEFAULT 'draft', -- draft, open, paid, void, uncollectible
       total_amount REAL NOT NULL DEFAULT 0,
       currency TEXT NOT NULL DEFAULT 'usd',

@@ -411,11 +411,12 @@ router.post('/', authenticateJWT, async (req, res) => {
     for (const item of items) {
       await dbRun(
         `
-        INSERT INTO invoice_items (
-          invoice_id, watch_id, description, quantity, unit_price, total_amount
-        ) VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO user_invoice_items (
+          user_id, invoice_id, watch_id, description, quantity, unit_price, total_amount
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
         [
+          userId,
           localInvoiceId,
           item.watch_id || null,
           item.description,
