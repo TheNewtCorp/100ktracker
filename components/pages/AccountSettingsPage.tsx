@@ -436,7 +436,7 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
                           <span className='text-platinum-silver/70'>Monthly Price:</span>
                           <span className='font-semibold text-champagne-gold'>${subscription?.price || 0}/month</span>
                         </div>
-                        <div className='text-xs text-platinum-silver/50 mt-0.5'>introductory price</div>
+                        <div className='text-xs text-platinum-silver/50 mt-0.5'>Introductory Rate</div>
 
                         {subscription?.startDate && (
                           <div className='flex justify-between items-center'>
