@@ -146,6 +146,7 @@ function createUserTable() {
               migrateInvoicesTableColumns(),
               migrateInvoiceContactConstraint(),
               migrateSubscriptionColumns(),
+              migrateLoginTrackingColumns(),
             ])
               .then(() => {
                 resolve();
@@ -481,6 +482,87 @@ function migrateSubscriptionColumns() {
         Promise.all(migrations)
           .then(() => {
             console.log('Subscription columns migration completed successfully');
+            resolve();
+          })
+          .catch(reject);
+      }
+    });
+  });
+}
+
+// Migrate login tracking columns
+function migrateLoginTrackingColumns() {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    // Check existing columns
+    db.all('PRAGMA table_info(users)', (err, columns) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      const existingColumns = columns.map((col) => col.name);
+      console.log('Checking for login tracking columns...');
+
+      const neededColumns = [
+        {
+          name: 'first_login_date',
+          type: 'TEXT DEFAULT NULL',
+          description: "Timestamp of user's first login",
+        },
+        {
+          name: 'last_login_date',
+          type: 'TEXT DEFAULT NULL',
+          description: "Timestamp of user's most recent login",
+        },
+        {
+          name: 'login_count',
+          type: 'INTEGER DEFAULT 0',
+          description: 'Total number of successful logins',
+        },
+        {
+          name: 'last_jwt_issued',
+          type: 'TEXT DEFAULT NULL',
+          description: 'Timestamp when JWT was last issued',
+        },
+        {
+          name: 'registration_date',
+          type: 'TEXT DEFAULT NULL',
+          description: 'When the user account was created',
+        },
+      ];
+
+      const migrations = [];
+
+      for (const column of neededColumns) {
+        if (!existingColumns.includes(column.name)) {
+          migrations.push(
+            new Promise((resolveCol, rejectCol) => {
+              db.run(`ALTER TABLE users ADD COLUMN ${column.name} ${column.type}`, (err) => {
+                if (err) {
+                  console.error(`Error adding ${column.name} column:`, err.message);
+                  rejectCol(err);
+                } else {
+                  console.log(`Added ${column.name} column to users table`);
+                  resolveCol();
+                }
+              });
+            }),
+          );
+        }
+      }
+
+      if (migrations.length === 0) {
+        console.log('All required login tracking columns already exist in users table');
+        resolve();
+      } else {
+        Promise.all(migrations)
+          .then(() => {
+            console.log('Login tracking columns migration completed');
             resolve();
           })
           .catch(reject);
@@ -1143,6 +1225,113 @@ function updateUsername(oldUsername, newUsername, callback = () => {}) {
   }
 }
 
+// Login tracking functions
+function recordUserLogin(userId, callback = () => {}) {
+  if (!db) {
+    callback(new Error('Database not initialized'));
+    return;
+  }
+
+  const now = new Date().toISOString();
+
+  // First, check if this is the user's first login
+  db.get('SELECT first_login_date, login_count FROM users WHERE id = ?', [userId], (err, user) => {
+    if (err) {
+      callback(err);
+      return;
+    }
+
+    if (!user) {
+      callback(new Error('User not found'));
+      return;
+    }
+
+    // Update login tracking
+    if (!user.first_login_date) {
+      // First time login
+      db.run(
+        `
+        UPDATE users 
+        SET first_login_date = ?, 
+            last_login_date = ?, 
+            login_count = 1, 
+            last_jwt_issued = ?,
+            status = 'active'
+        WHERE id = ?
+      `,
+        [now, now, now, userId],
+        callback,
+      );
+    } else {
+      // Returning user login
+      const newCount = (user.login_count || 0) + 1;
+      db.run(
+        `
+        UPDATE users 
+        SET last_login_date = ?, 
+            login_count = ?, 
+            last_jwt_issued = ?
+        WHERE id = ?
+      `,
+        [now, newCount, now, userId],
+        callback,
+      );
+    }
+  });
+}
+
+function getUserLoginStats(userId, callback) {
+  if (!db) {
+    callback(new Error('Database not initialized'), null);
+    return;
+  }
+
+  db.get(
+    `
+    SELECT 
+      first_login_date,
+      last_login_date,
+      login_count,
+      last_jwt_issued,
+      registration_date,
+      status
+    FROM users 
+    WHERE id = ?
+  `,
+    [userId],
+    callback,
+  );
+}
+
+function getAllUsersLoginStats(callback) {
+  if (!db) {
+    callback(new Error('Database not initialized'), null);
+    return;
+  }
+
+  db.all(
+    `
+    SELECT 
+      id,
+      username,
+      email,
+      status,
+      first_login_date,
+      last_login_date,
+      login_count,
+      last_jwt_issued,
+      registration_date,
+      subscription_tier,
+      subscription_status
+    FROM users 
+    WHERE id > 1
+    ORDER BY id DESC
+  `,
+    [],
+    callback,
+  );
+}
+
 // Subscription management functions
 function getUserSubscription(userId, callback) {
   if (db) {
@@ -1251,6 +1440,11 @@ module.exports = {
   updateUserStatus,
   updateInvitationTimestamp,
   updateUsername,
+  // Login tracking
+  migrateLoginTrackingColumns,
+  recordUserLogin,
+  getUserLoginStats,
+  getAllUsersLoginStats,
   // Subscriptions
   getUserSubscription,
   updateUserSubscription,

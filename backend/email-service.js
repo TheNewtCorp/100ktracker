@@ -332,7 +332,7 @@ The 100K Tracker Team
   }
 
   // Send invitation email
-  async sendInvitationEmail(userData, adminEmail = 'admin@100ktracker.com') {
+  async sendInvitationEmail(userData, adminEmail = 'onboarding@100ktracker.com') {
     // Ensure initialization is complete
     if (!this.initialized) {
       await this.initializeAsync();
@@ -346,7 +346,7 @@ The 100K Tracker Team
     const emailTemplate = this.generateInvitationEmail(userData);
 
     const mailOptions = {
-      from: `"100K Tracker" <${adminEmail}>`,
+      from: `"100K Tracker" <onboarding@100ktracker.com>`,
       to: email,
       subject: emailTemplate.subject,
       text: emailTemplate.text,
@@ -373,7 +373,7 @@ The 100K Tracker Team
   }
 
   // Send password reset email
-  async sendPasswordResetEmail(userEmail, resetToken, adminEmail = 'admin@100ktracker.com') {
+  async sendPasswordResetEmail(userEmail, resetToken, adminEmail = 'onboarding@100ktracker.com') {
     if (!this.isConfigured()) {
       throw new Error('Email service not properly configured');
     }
@@ -383,7 +383,7 @@ The 100K Tracker Team
     const resetUrl = `${productionUrl}/reset-password?token=${resetToken}`;
 
     const mailOptions = {
-      from: `"100K Tracker" <${adminEmail}>`,
+      from: `"100K Tracker" <onboarding@100ktracker.com>`,
       to: userEmail,
       subject: '100K Tracker - Password Reset Request',
       html: `

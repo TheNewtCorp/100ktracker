@@ -8,6 +8,7 @@ const {
   updateFirstLoginTimestamp,
   updateUserStatus,
   updateUsername,
+  recordUserLogin,
   setUserSubscriptionByUsername,
   getSubscriptionTierInfo,
 } = require('./db');
@@ -53,19 +54,13 @@ router.post('/login', (req, res) => {
 
     if (!verifyPassword(user, password)) return res.status(401).json({ error: 'Invalid credentials' });
 
-    // Update first login timestamp if this is their first login
-    if (!user.first_login_at) {
-      updateFirstLoginTimestamp(user.id, (err) => {
-        if (err) console.error('Failed to update first login timestamp:', err);
-      });
-    }
-
-    // Update status from pending to active on first successful login
-    if (user.status === 'pending') {
-      updateUserStatus(user.id, 'active', (err) => {
-        if (err) console.error('Failed to update user status:', err);
-      });
-    }
+    // Record login activity and update status
+    recordUserLogin(user.id, (err) => {
+      if (err) {
+        console.error('Failed to record login activity:', err);
+        // Don't fail the login, just log the error
+      }
+    });
 
     // Issue JWT with additional user info
     const token = jwt.sign(
@@ -237,6 +232,119 @@ router.post('/admin/set-subscription', (req, res) => {
       });
     });
   });
+});
+
+// Admin endpoint to check user activity status
+router.get('/admin/user-activity', (req, res) => {
+  try {
+    const { getDb } = require('./db');
+    const db = getDb();
+
+    if (!db) {
+      return res.status(500).json({ error: 'Database not available' });
+    }
+
+    // Get comprehensive user activity data
+    db.all(
+      `
+      SELECT 
+        id,
+        username,
+        email,
+        status,
+        invited_by,
+        subscription_tier,
+        subscription_status,
+        subscription_start_date,
+        subscription_end_date
+      FROM users 
+      WHERE id > 1
+      ORDER BY id DESC
+      LIMIT 50
+    `,
+      [],
+      (err, users) => {
+        if (err) {
+          console.error('Error fetching user activity:', err);
+          return res.status(500).json({ error: 'Failed to fetch user data' });
+        }
+
+        // Calculate summary statistics
+        const summary = {
+          totalUsers: users.length,
+          activeUsers: users.filter((u) => u.status === 'active').length,
+          pendingUsers: users.filter((u) => u.status === 'pending').length,
+          invitedUsers: users.filter((u) => u.status === 'invited').length,
+          suspendedUsers: users.filter((u) => u.status === 'suspended').length,
+          paidSubscriptions: users.filter((u) => u.subscription_tier && u.subscription_tier !== 'free').length,
+        };
+
+        // Group users by status for easier analysis
+        const usersByStatus = {
+          active: users.filter((u) => u.status === 'active'),
+          pending: users.filter((u) => u.status === 'pending'),
+          invited: users.filter((u) => u.status === 'invited'),
+          suspended: users.filter((u) => u.status === 'suspended' || u.status === null),
+        };
+
+        res.json({
+          success: true,
+          timestamp: new Date().toISOString(),
+          environment: process.env.NODE_ENV || 'development',
+          summary,
+          usersByStatus,
+          allUsers: users,
+        });
+      },
+    );
+  } catch (error) {
+    console.error('Error in user activity endpoint:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Quick user statistics endpoint (lightweight)
+router.get('/admin/user-stats', (req, res) => {
+  try {
+    const { getDb } = require('./db');
+    const db = getDb();
+
+    if (!db) {
+      return res.status(500).json({ error: 'Database not available' });
+    }
+
+    db.get(
+      `
+      SELECT 
+        COUNT(*) as total_users,
+        SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_users,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_users,
+        SUM(CASE WHEN status = 'invited' THEN 1 ELSE 0 END) as invited_users,
+        SUM(CASE WHEN status = 'suspended' THEN 1 ELSE 0 END) as suspended_users,
+        SUM(CASE WHEN subscription_tier = 'platinum' THEN 1 ELSE 0 END) as platinum_users,
+        SUM(CASE WHEN subscription_tier = 'operandi' THEN 1 ELSE 0 END) as operandi_users
+      FROM users 
+      WHERE id > 1
+    `,
+      [],
+      (err, stats) => {
+        if (err) {
+          console.error('Error fetching user stats:', err);
+          return res.status(500).json({ error: 'Failed to fetch statistics' });
+        }
+
+        res.json({
+          success: true,
+          timestamp: new Date().toISOString(),
+          environment: process.env.NODE_ENV || 'development',
+          stats: stats || {},
+        });
+      },
+    );
+  } catch (error) {
+    console.error('Error in user stats endpoint:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 module.exports = router;
