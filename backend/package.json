@@ -12,7 +12,9 @@
     "dev": "nodemon server.js",
     "postinstall": "npx playwright install chromium",
     "test": "echo \"No tests specified\" && exit 0",
-    "health": "node healthcheck.js"
+    "health": "node healthcheck.js",
+    "analyze-jwt": "node analyze-jwt-tokens.js",
+    "deploy-check": "node analyze-jwt-tokens.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
