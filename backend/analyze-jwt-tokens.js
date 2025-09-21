@@ -13,7 +13,7 @@
  * - Detailed JWT tracking data if migration was run
  */
 
-const { getDb, ensureDbConnection } = require('./db');
+const { getDb, ensureDbConnection, initDB } = require('./db');
 
 function analyzeJWTTokens() {
   console.log('🎯 Production JWT Token Analysis');
@@ -24,13 +24,11 @@ function analyzeJWTTokens() {
 
   try {
     // Ensure database connection
-    ensureDbConnection();
     const db = getDb();
-
     if (!db) {
-      console.error('❌ Database connection failed');
-      process.exit(1);
+      return initDB();
     }
+    ensureDbConnection();
 
     console.log('✅ Database connected successfully');
     console.log('');
