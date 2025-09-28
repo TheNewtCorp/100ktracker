@@ -452,4 +452,85 @@ router.post('/admin/update-password', (req, res) => {
   });
 });
 
+// Admin endpoint to list all users with detailed information (CLI management)
+router.get('/admin/list-users', (req, res) => {
+  try {
+    const { getDb } = require('./db');
+    const db = getDb();
+
+    if (!db) {
+      return res.status(500).json({ error: 'Database not available' });
+    }
+
+    // Get comprehensive user data including passwords for admin CLI usage
+    db.all(
+      `
+      SELECT 
+        id,
+        username,
+        hashed_password,
+        email,
+        status,
+        created_at,
+        first_login_at,
+        subscription_tier,
+        subscription_status,
+        subscription_price,
+        subscription_start_date,
+        subscription_end_date,
+        stripe_subscription_id,
+        temporary_password
+      FROM users 
+      ORDER BY created_at DESC
+    `,
+      [],
+      (err, users) => {
+        if (err) {
+          console.error('Error fetching users:', err);
+          return res.status(500).json({ error: 'Failed to fetch users' });
+        }
+
+        // Calculate summary statistics
+        const summary = {
+          totalUsers: users.length,
+          activeUsers: users.filter((u) => u.status === 'active').length,
+          pendingUsers: users.filter((u) => u.status === 'pending').length,
+          invitedUsers: users.filter((u) => u.status === 'invited').length,
+          suspendedUsers: users.filter((u) => u.status === 'suspended').length,
+          temporaryPasswordUsers: users.filter((u) => u.temporary_password).length,
+          paidSubscriptions: users.filter((u) => u.subscription_tier && u.subscription_tier !== 'free').length,
+        };
+
+        res.json({
+          success: true,
+          timestamp: new Date().toISOString(),
+          environment: process.env.NODE_ENV || 'development',
+          summary,
+          users: users.map((user) => ({
+            id: user.id,
+            username: user.username,
+            email: user.email || null,
+            status: user.status,
+            hashedPassword: user.hashed_password,
+            temporaryPassword: !!user.temporary_password,
+            createdAt: user.created_at,
+            firstLoginAt: user.first_login_at,
+            subscription: {
+              tier: user.subscription_tier,
+              status: user.subscription_status,
+              price: user.subscription_price,
+              startDate: user.subscription_start_date,
+              endDate: user.subscription_end_date,
+              stripeId: user.stripe_subscription_id,
+            },
+          })),
+        });
+      },
+    );
+  } catch (error) {
+    console.error('Error in list users endpoint:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

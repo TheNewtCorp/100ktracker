@@ -1,40 +1,64 @@
 #!/usr/bin/env node
 
-const { initDB, closeDB } = require('./db');
+/**
+ * Production User List Script
+ *
+ * Lists users via production API, similar to other admin CLI commands.
+ * Works exactly like: curl -X GET "https://one00ktracker.onrender.com/api/admin/list-users"
+ */
 
-// Get all users helper function
-function getAllUsers(callback) {
-  const { db } = require('./db');
-  if (!db) {
-    return callback(new Error('Database not initialized'));
-  }
+const https = require('https');
 
-  const query = `
-    SELECT 
-      u.id,
-      u.username,
-      u.email,
-      u.status,
-      u.created_at,
-      u.first_login_at
-    FROM users u
-    ORDER BY u.created_at DESC
-  `;
+// Production API configuration
+const PRODUCTION_URL = 'https://one00ktracker.onrender.com';
 
-  db.all(query, [], callback);
+/**
+ * Make HTTPS request to production API
+ */
+function makeRequest() {
+  return new Promise((resolve, reject) => {
+    const options = {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    };
+
+    const req = https.request(`${PRODUCTION_URL}/api/admin/list-users`, options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => (body += chunk));
+      res.on('end', () => {
+        try {
+          const result = JSON.parse(body);
+          resolve({ status: res.statusCode, data: result });
+        } catch (e) {
+          resolve({ status: res.statusCode, data: body });
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.end();
+  });
 }
 
-// List all users with their details
-function listUsers() {
-  return new Promise((resolve, reject) => {
-    getAllUsers((err, users) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      resolve(users);
-    });
-  });
+/**
+ * Fetch users via production API
+ */
+async function listUsers() {
+  try {
+    console.log('Fetching users from production API...');
+
+    const response = await makeRequest();
+
+    if (response.status === 200) {
+      return response.data;
+    } else {
+      throw new Error(`Failed to fetch users. Status: ${response.status}. Response: ${JSON.stringify(response.data)}`);
+    }
+  } catch (error) {
+    throw new Error(`Error fetching users: ${error.message}`);
+  }
 }
 
 // Format date for display
@@ -58,47 +82,80 @@ function getStatusIndicator(status) {
   }
 }
 
-// Display users in a nice table format
-function displayUsers(users) {
-  console.log('\n👥 100K Tracker Users\n');
+// Display users in a nice table format with passwords
+function displayUsers(data, options = {}) {
+  console.log('\n👥 100K Tracker Users (Production API)\n');
+
+  const { users, summary } = data;
 
   if (users.length === 0) {
     console.log('No users found.');
     return;
   }
 
-  console.log('ID | Status | Username       | Email                    | Created        | First Login    | Invited By');
-  console.log(
-    '---|--------|----------------|--------------------------|----------------|----------------|------------',
-  );
+  // Filter users if status specified
+  let filteredUsers = users;
+  if (options.status) {
+    filteredUsers = users.filter((user) => user.status === options.status);
+    console.log(`Filtering by status: ${options.status}\n`);
+  }
 
-  users.forEach((user) => {
-    const id = user.id.toString().padEnd(2);
-    const status = `${getStatusIndicator(user.status)} ${user.status}`.padEnd(6);
-    const username = user.username.padEnd(14);
-    const email = (user.email || '').padEnd(24);
-    const created = formatDate(user.created_at).padEnd(14);
-    const firstLogin = formatDate(user.first_login_at).padEnd(14);
-    const invitedBy = user.invited_by_username || 'System';
+  if (options.passwords) {
+    console.log(
+      'ID | Status     | Username         | Email                      | Password Hash                                    | Temp | Subscription',
+    );
+    console.log(
+      '---|------------|------------------|----------------------------|--------------------------------------------------|------|-------------',
+    );
 
-    console.log(`${id} | ${status} | ${username} | ${email} | ${created} | ${firstLogin} | ${invitedBy}`);
-  });
+    filteredUsers.forEach((user) => {
+      const id = user.id.toString().padEnd(2);
+      const status = `${getStatusIndicator(user.status)} ${user.status}`.padEnd(9);
+      const username = user.username.padEnd(15);
+      const email = (user.email || 'None').padEnd(26);
+      const passwordHash = user.hashedPassword ? user.hashedPassword.substring(0, 48) + '...' : 'None'.padEnd(48);
+      const temp = user.temporaryPassword ? '🔐' : '  ';
+      const subscription = user.subscription.tier || 'free';
+
+      console.log(`${id} | ${status} | ${username} | ${email} | ${passwordHash} | ${temp}  | ${subscription}`);
+    });
+  } else {
+    console.log(
+      'ID | Status     | Username         | Email                      | Created          | First Login      | Temp | Subscription',
+    );
+    console.log(
+      '---|------------|------------------|----------------------------|------------------|------------------|------|-------------',
+    );
+
+    filteredUsers.forEach((user) => {
+      const id = user.id.toString().padEnd(2);
+      const status = `${getStatusIndicator(user.status)} ${user.status}`.padEnd(9);
+      const username = user.username.padEnd(15);
+      const email = (user.email || 'None').padEnd(26);
+      const created = formatDate(user.createdAt).padEnd(16);
+      const firstLogin = formatDate(user.firstLoginAt).padEnd(16);
+      const temp = user.temporaryPassword ? '🔐' : '  ';
+      const subscription = user.subscription.tier || 'free';
+
+      console.log(
+        `${id} | ${status} | ${username} | ${email} | ${created} | ${firstLogin} | ${temp}  | ${subscription}`,
+      );
+    });
+  }
 
   // Summary stats
-  const statusCounts = users.reduce((acc, user) => {
-    acc[user.status] = (acc[user.status] || 0) + 1;
-    return acc;
-  }, {});
-
-  const tempPasswordUsers = users.filter((u) => u.temporary_password).length;
-
   console.log('\n📊 Summary:');
-  console.log(`   Total Users: ${users.length}`);
-  Object.entries(statusCounts).forEach(([status, count]) => {
-    console.log(`   ${getStatusIndicator(status)} ${status}: ${count}`);
-  });
-  if (tempPasswordUsers > 0) {
-    console.log(`   🔐 Users with temporary passwords: ${tempPasswordUsers}`);
+  console.log(`   Total Users: ${summary.totalUsers}`);
+  console.log(`   ${getStatusIndicator('active')} Active: ${summary.activeUsers}`);
+  console.log(`   ${getStatusIndicator('pending')} Pending: ${summary.pendingUsers}`);
+  console.log(`   ${getStatusIndicator('invited')} Invited: ${summary.invitedUsers}`);
+  console.log(`   ${getStatusIndicator('suspended')} Suspended: ${summary.suspendedUsers}`);
+  console.log(`   🔐 Temporary passwords: ${summary.temporaryPasswordUsers}`);
+  console.log(`   💳 Paid subscriptions: ${summary.paidSubscriptions}`);
+
+  if (options.passwords) {
+    console.log('\n⚠️  Security Notice: Password hashes are displayed for administrative purposes only.');
+    console.log('   Store this information securely and do not share through unsecured channels.');
   }
 }
 
@@ -122,23 +179,31 @@ function parseArgs() {
 // Show help
 function showHelp() {
   console.log(`
-👥 100K Tracker - User List CLI
+👥 100K Tracker - User List CLI (Production API)
 
 Usage:
   node list-users.js [options]
 
 Options:
-  --status=<status>       Filter by status (active, pending, suspended)
+  --status=<status>       Filter by status (active, pending, invited, suspended)
+  --passwords             Show password hashes (SECURITY SENSITIVE)
   --help                  Show this help message
 
 Examples:
   node list-users.js                    # List all users
-  node list-users.js --status=pending   # List only pending users
+  node list-users.js --status=active    # List only active users
+  node list-users.js --passwords        # Show users with password hashes
   
 Status Indicators:
   ✅ active    - User has logged in and is active
   ⏳ pending   - User created but hasn't logged in yet
+  📧 invited   - User has been invited but not registered
   🚫 suspended - User account suspended
+
+Notes:
+  - 🌐 Makes API calls to production server
+  - 🔐 Password hashes are only shown with --passwords flag
+  - ⚠️  Password information is security sensitive
   `);
 }
 
@@ -152,29 +217,15 @@ async function main() {
   }
 
   try {
-    // Initialize database first
-    await initDB();
+    const data = await listUsers();
 
-    const users = await listUsers();
-
-    // Filter by status if specified
-    let filteredUsers = users;
-    if (options.status) {
-      filteredUsers = users.filter((user) => user.status === options.status);
-      console.log(`\nFiltering by status: ${options.status}`);
-    }
-
-    displayUsers(filteredUsers);
+    displayUsers(data, {
+      status: options.status,
+      passwords: options.passwords,
+    });
   } catch (error) {
     console.error('❌ Error:', error.message);
     process.exit(1);
-  } finally {
-    // Close database connection
-    try {
-      await closeDB();
-    } catch (err) {
-      console.error('Error closing database:', err.message);
-    }
   }
 }
 
