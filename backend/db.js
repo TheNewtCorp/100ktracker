@@ -20,6 +20,39 @@ function ensureDbConnection() {
   return true;
 }
 
+// Run migrations for user table columns
+function runUserTableMigrations() {
+  return new Promise((resolve, reject) => {
+    // Check if temporary_password column exists
+    db.all('PRAGMA table_info(users)', (err, columns) => {
+      if (err) {
+        reject(new Error(`Failed to get table info: ${err.message}`));
+        return;
+      }
+
+      const hasTemporaryPassword = columns.some((col) => col.name === 'temporary_password');
+
+      if (hasTemporaryPassword) {
+        console.log('✓ temporary_password column already exists');
+        resolve();
+        return;
+      }
+
+      // Add the temporary_password column
+      console.log('Adding temporary_password column to users table...');
+      db.run('ALTER TABLE users ADD COLUMN temporary_password INTEGER DEFAULT 0', (err) => {
+        if (err) {
+          reject(new Error(`Failed to add temporary_password column: ${err.message}`));
+          return;
+        }
+
+        console.log('✓ Added temporary_password column to users table');
+        resolve();
+      });
+    });
+  });
+}
+
 // Create users table if not exists
 function initDB() {
   return new Promise((resolve, reject) => {
@@ -91,7 +124,8 @@ function createUserTable() {
       subscription_price REAL DEFAULT 0,
       subscription_start_date DATETIME DEFAULT NULL,
       subscription_end_date DATETIME DEFAULT NULL,
-      stripe_subscription_id TEXT DEFAULT NULL
+      stripe_subscription_id TEXT DEFAULT NULL,
+      temporary_password INTEGER DEFAULT 0
     )`,
       (err) => {
         if (err) {
@@ -100,6 +134,16 @@ function createUserTable() {
           return;
         }
         console.log('Users table created/verified');
+
+        // Run column migrations after table creation
+        runUserTableMigrations()
+          .then(() => {
+            console.log('User table migrations completed');
+          })
+          .catch((migrationErr) => {
+            console.error('Migration error (non-fatal):', migrationErr.message);
+            // Don't reject here, migrations are non-fatal for existing deployments
+          });
 
         // Insert default admin user if not exists
         db.get('SELECT * FROM users WHERE username = ?', ['admin'], (err, user) => {

@@ -15,6 +15,7 @@
     "health": "node healthcheck.js",
     "analyze-jwt": "node analyze-jwt-tokens.js",
     "deploy-check": "node analyze-jwt-tokens.js",
+    "migrate-temp-password": "node add-temporary-password-column.js",
     "update-password": "node update-password.js",
     "reset-password": "node update-password.js",
     "add-user": "node add-user.js",

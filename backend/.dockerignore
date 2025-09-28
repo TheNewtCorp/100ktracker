@@ -5,9 +5,13 @@ npm-debug.log
 coverage
 .grunt
 lib-cov
-_.seed
-_.log
-_.csv
+_.seed# Development files
+
+*.md
+.git
+db/*.sqlite
+db/*.db
+node_modules_.csv
 _.dat
 _.out
 _.pid
