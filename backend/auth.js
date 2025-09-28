@@ -347,4 +347,109 @@ router.get('/admin/user-stats', (req, res) => {
   }
 });
 
+// Admin endpoint to update user password (CLI management)
+router.post('/admin/update-password', (req, res) => {
+  const { username, password, temporary } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({
+      error: 'Missing required fields: username and password are required',
+    });
+  }
+
+  // Validate password strength
+  function validatePassword(pwd) {
+    const errors = [];
+
+    if (pwd.length < 8) {
+      errors.push('Password must be at least 8 characters long');
+    }
+
+    if (!/[A-Z]/.test(pwd)) {
+      errors.push('Password must contain at least one uppercase letter');
+    }
+
+    if (!/[a-z]/.test(pwd)) {
+      errors.push('Password must contain at least one lowercase letter');
+    }
+
+    if (!/[0-9]/.test(pwd)) {
+      errors.push('Password must contain at least one number');
+    }
+
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd)) {
+      errors.push('Password must contain at least one special character');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+    };
+  }
+
+  // Validate the password
+  const validation = validatePassword(password);
+  if (!validation.isValid) {
+    return res.status(400).json({
+      error: 'Password validation failed',
+      details: validation.errors,
+    });
+  }
+
+  // Check if user exists
+  findUser(username, (err, user) => {
+    if (err) {
+      console.error('Database error:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: `User "${username}" not found` });
+    }
+
+    // Hash the password and update in database
+    const bcrypt = require('bcryptjs');
+    const saltRounds = 10;
+
+    bcrypt.hash(password, saltRounds, (hashErr, hashedPassword) => {
+      if (hashErr) {
+        console.error('Password hashing error:', hashErr);
+        return res.status(500).json({ error: 'Failed to process password' });
+      }
+
+      // Update password in database
+      const { getDb } = require('./db');
+      const db = getDb();
+
+      if (!db) {
+        return res.status(500).json({ error: 'Database not available' });
+      }
+
+      const isTemporary = temporary === true || temporary === 'true' || temporary === 1;
+
+      db.run(
+        'UPDATE users SET hashed_password = ?, temporary_password = ? WHERE id = ?',
+        [hashedPassword, isTemporary ? 1 : 0, user.id],
+        function (updateErr) {
+          if (updateErr) {
+            console.error('Error updating password:', updateErr);
+            return res.status(500).json({ error: 'Failed to update password' });
+          }
+
+          res.json({
+            message: `Successfully updated password for "${username}"`,
+            user: {
+              id: user.id,
+              username: user.username,
+              email: user.email,
+            },
+            temporary: isTemporary,
+            rowsChanged: this.changes,
+          });
+        },
+      );
+    });
+  });
+});
+
 module.exports = router;
