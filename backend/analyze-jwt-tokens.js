@@ -28,7 +28,6 @@ function analyzeJWTTokens() {
     if (!db) {
       return initDB();
     }
-    ensureDbConnection();
 
     console.log('✅ Database connected successfully');
     console.log('');

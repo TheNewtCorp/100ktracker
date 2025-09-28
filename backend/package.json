@@ -14,7 +14,12 @@
     "test": "echo \"No tests specified\" && exit 0",
     "health": "node healthcheck.js",
     "analyze-jwt": "node analyze-jwt-tokens.js",
-    "deploy-check": "node analyze-jwt-tokens.js"
+    "deploy-check": "node analyze-jwt-tokens.js",
+    "update-password": "node update-password.js",
+    "reset-password": "node update-password.js",
+    "add-user": "node add-user.js",
+    "verify-user": "node verify-user.js",
+    "list-users": "node list-users.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
