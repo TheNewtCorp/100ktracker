@@ -1,26 +1,49 @@
 #!/usr/bin/env node
 
-const { findUser, initDB, closeDB, getDb } = require('./db');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
+/**
+ * Production Password Update Script
+ *
+ * Updates user passwords via production API, similar to set-subscription command.
+ * Works exactly like: curl -X POST "https://one00ktracker.onrender.com/api/admin/update-password"
+ */
 
-// Command line argument parsing
-function parseArgs() {
-  const args = process.argv.slice(2);
-  const options = {};
+const https = require('https');
 
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg.startsWith('--')) {
-      const [key, value] = arg.split('=');
-      const cleanKey = key.replace('--', '');
-      options[cleanKey] = value || true;
-    } else if (!options.username) {
-      options.username = arg;
-    }
-  }
+// Production API configuration
+const PRODUCTION_URL = 'https://one00ktracker.onrender.com';
 
-  return options;
+/**
+ * Make HTTPS request to production API
+ */
+function makeRequest(data) {
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify(data);
+
+    const options = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+    };
+
+    const req = https.request(`${PRODUCTION_URL}/api/admin/update-password`, options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => (body += chunk));
+      res.on('end', () => {
+        try {
+          const result = JSON.parse(body);
+          resolve({ status: res.statusCode, data: result });
+        } catch (e) {
+          resolve({ status: res.statusCode, data: body });
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
 }
 
 // Generate secure random password
@@ -55,8 +78,8 @@ function generatePassword(length = 12) {
 function validatePassword(password) {
   const errors = [];
 
-  if (password.length < 6) {
-    errors.push('Password must be at least 6 characters long');
+  if (password.length < 8) {
+    errors.push('Password must be at least 8 characters long');
   }
 
   if (!/[A-Z]/.test(password)) {
@@ -71,7 +94,7 @@ function validatePassword(password) {
     errors.push('Password must contain at least one number');
   }
 
-  if (!/[^A-Za-z0-9]/.test(password)) {
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
     errors.push('Password must contain at least one special character');
   }
 
@@ -81,230 +104,124 @@ function validatePassword(password) {
   };
 }
 
-// Update user password
-async function updatePassword(username, newPassword, options = {}) {
-  return new Promise((resolve, reject) => {
-    // Validate password
-    const validation = validatePassword(newPassword);
-    if (!validation.isValid) {
-      reject(new Error(`Password validation failed:\n${validation.errors.map((e) => `  - ${e}`).join('\n')}`));
-      return;
+/**
+ * Update password via production API
+ */
+async function updatePassword(username, password, temporary = false) {
+  try {
+    const requestData = {
+      username,
+      password,
+      temporary,
+    };
+
+    console.log(`Updating password for user: ${username}`);
+
+    const response = await makeRequest(requestData);
+
+    if (response.status === 200) {
+      console.log('✅ Password updated successfully');
+      if (response.data.message) {
+        console.log('Message:', response.data.message);
+      }
+      return response.data;
+    } else {
+      throw new Error(
+        `Failed to update password. Status: ${response.status}. Response: ${JSON.stringify(response.data)}`,
+      );
     }
-
-    // Find user first
-    findUser(username, async (err, user) => {
-      if (err) {
-        reject(new Error(`Database error: ${err.message}`));
-        return;
-      }
-
-      if (!user) {
-        reject(new Error(`User '${username}' not found`));
-        return;
-      }
-
-      try {
-        // Hash the new password
-        const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
-
-        // Get database connection
-        const db = getDb();
-        if (!db) {
-          reject(new Error('Database connection not available'));
-          return;
-        }
-
-        // Determine temporary password flag
-        const isTemporary = options.temporary || options.generate || false;
-
-        // Update password in database
-        db.run(
-          'UPDATE users SET hashed_password = ?, temporary_password = ? WHERE id = ?',
-          [hashedPassword, isTemporary ? 1 : 0, user.id],
-          function (err) {
-            if (err) {
-              reject(new Error(`Failed to update password: ${err.message}`));
-              return;
-            }
-
-            resolve({
-              userId: user.id,
-              username: user.username,
-              email: user.email,
-              passwordUpdated: true,
-              temporaryPassword: isTemporary,
-              rowsChanged: this.changes,
-            });
-          },
-        );
-      } catch (hashError) {
-        reject(new Error(`Password hashing failed: ${hashError.message}`));
-      }
-    });
-  });
+  } catch (error) {
+    throw new Error(`Error updating password: ${error.message}`);
+  }
 }
 
 // Display help
 function showHelp() {
   console.log(`
-🔑 100K Tracker - Password Management CLI
+🔑 100K Tracker - Password Management CLI (Production API)
 
 Usage:
-  node update-password.js <username> [options]
+  node update-password.js <username> [password] [--temporary]
+
+Arguments:
+  username                Username to update password for
 
 Options:
-  --password=<string>     Set specific password
-  --generate              Generate random secure password
   --temporary             Mark password as temporary (user must change on login)
-  --force                 Skip confirmation prompts
-  --help                  Show this help message
 
 Examples:
   🔑 Set specific password:
-    node update-password.js john_doe --password="SecurePass123!"
+    node update-password.js john_doe MyNewPass123!
     
   🎲 Generate random password:
-    node update-password.js john_doe --generate
+    node update-password.js john_doe
     
-  ⏳ Set temporary password (user must change on login):
-    node update-password.js john_doe --generate --temporary
-    
-  🚀 Force update without confirmation:
-    node update-password.js john_doe --password="NewPass123!" --force
+  ⏳ Set temporary password:
+    node update-password.js john_doe --temporary
 
 Password Requirements:
-  - Minimum 6 characters
+  - Minimum 8 characters
   - At least 1 uppercase letter
   - At least 1 lowercase letter  
   - At least 1 number
-  - At least 1 special character (!@#$%^&*)
+  - At least 1 special character
 
 Notes:
-  - 🔐 All passwords are securely hashed before storage
+  - 🌐 Makes API calls to production server
+  - 🔐 All passwords are securely hashed on the server
   - ⏳ Temporary passwords require user to change on next login
   - 🎲 Generated passwords are 12 characters with mixed case, numbers, and symbols
-  - 👤 User status and other account details remain unchanged
-  - 🔍 Use verify-user.js to check user details before updating passwords
-  - 📧 Users should be notified of password changes through secure channels
   `);
 }
 
 // Main execution
 async function main() {
-  const options = parseArgs();
+  const args = process.argv.slice(2);
 
-  if (options.help || !options.username) {
+  if (args.length === 0) {
     showHelp();
-    process.exit(0);
+    process.exit(1);
   }
 
-  try {
-    console.log('🔑 Password Management Tool\n');
-    console.log('🚀 Initializing database...');
+  const username = args[0];
+  const isTemporary = args.includes('--temporary');
 
-    // Initialize database
-    await initDB();
-    console.log('✅ Database initialized successfully\n');
+  // Get password from args or generate one
+  let password = args.find((arg) => !arg.startsWith('--') && arg !== username);
 
-    const username = options.username;
+  if (!password) {
+    password = generatePassword();
+    console.log(`Generated password: ${password}`);
+  }
 
-    // Determine password source
-    let newPassword;
-    let isGenerated = false;
-
-    if (options.generate) {
-      newPassword = generatePassword(12);
-      isGenerated = true;
-      console.log('🎲 Generated secure password');
-    } else if (options.password) {
-      newPassword = options.password;
-      console.log('🔑 Using provided password');
-    } else {
-      throw new Error('Either --password=<password> or --generate must be specified');
-    }
-
-    console.log(`👤 Target user: ${username}`);
-    console.log(`🔐 Password length: ${newPassword.length} characters`);
-
-    if (options.temporary) {
-      console.log('⏳ Password will be marked as temporary (user must change on login)');
-    }
-
-    // Validate password
-    const validation = validatePassword(newPassword);
-    if (!validation.isValid) {
-      console.log('\n❌ Password validation failed:');
-      validation.errors.forEach((error) => {
-        console.log(`   - ${error}`);
-      });
-      process.exit(1);
-    }
-
-    console.log('✅ Password validation passed\n');
-
-    // Show confirmation unless --force is used
-    if (!options.force) {
-      console.log("⚠️  This will update the user's password. The user should be notified through secure channels.");
-      console.log('   Continue? Type "yes" to proceed:');
-
-      // Simple confirmation (in production, you might want to use a proper prompt library)
-      process.stdout.write('   > ');
-
-      // For this example, we'll proceed automatically in CLI mode
-      // In a real implementation, you'd wait for user input here
-      console.log('yes (auto-confirmed in CLI mode)');
-    }
-
-    console.log('\n🔄 Updating password...');
-
-    // Update the password
-    const result = await updatePassword(username, newPassword, {
-      temporary: options.temporary,
-      generate: options.generate,
-    });
-
-    console.log('✅ Password updated successfully!\n');
-
-    console.log('📋 Update Summary:');
-    console.log(`   User ID: ${result.userId}`);
-    console.log(`   Username: ${result.username}`);
-    console.log(`   Email: ${result.email || 'None'}`);
-    console.log(`   Rows changed: ${result.rowsChanged}`);
-    console.log(`   Temporary password: ${result.temporaryPassword ? 'Yes' : 'No'}`);
-
-    if (isGenerated) {
-      console.log('\n🔐 Generated Password (SECURE THIS INFORMATION):');
-      console.log(`   Password: ${newPassword}`);
-      console.log('   ⚠️  Store this password securely and share through encrypted channels only');
-    }
-
-    if (result.temporaryPassword) {
-      console.log('\n⏳ Temporary Password Notice:');
-      console.log('   - User MUST change password on next login');
-      console.log('   - User cannot use the application until password is changed');
-      console.log('   - Inform user about mandatory password change requirement');
-    }
-
-    console.log('\n📝 Next Steps:');
-    console.log('   1. Notify user of password change through secure channel');
-    if (result.temporaryPassword) {
-      console.log('   2. Inform user about mandatory password change on login');
-    } else {
-      console.log('   2. User can login immediately with new password');
-    }
-    console.log('   3. Consider logging this administrative action');
-    console.log("   4. Monitor user's next login for successful access\n");
-  } catch (error) {
-    console.error('❌ Error:', error.message);
+  // Validate password
+  const validation = validatePassword(password);
+  if (!validation.isValid) {
+    console.error('❌ Password validation failed:');
+    validation.errors.forEach((error) => console.error(`  - ${error}`));
     process.exit(1);
-  } finally {
-    // Close database connection
-    try {
-      await closeDB();
-    } catch (err) {
-      console.error('Error closing database:', err.message);
+  }
+
+  console.log(`\n🔐 Updating password for user: ${username}`);
+  console.log(`🔒 Temporary password: ${isTemporary ? 'YES' : 'NO'}`);
+
+  try {
+    const result = await updatePassword(username, password, isTemporary);
+
+    console.log('\n✅ Password update completed successfully!');
+    if (!args.includes(password)) {
+      // Only show if generated
+      console.log(`� New password: ${password}`);
     }
+
+    if (result && result.user) {
+      console.log(`👤 User: ${result.user.username}`);
+      console.log(`📧 Email: ${result.user.email || 'None'}`);
+    }
+  } catch (error) {
+    console.error('\n❌ Password update failed!');
+    console.error('Error:', error.message);
+    process.exit(1);
   }
 }
 
