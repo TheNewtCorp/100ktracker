@@ -523,6 +523,264 @@ The 100K Tracker Team
     }
   }
 
+  // Send promotional signup notification to admin
+  async sendPromoSignupNotification(signupData, adminEmail = '100kprofittracker@gmail.com') {
+    if (!this.isConfigured()) {
+      throw new Error('Email service not properly configured');
+    }
+
+    // Get the correct base URL based on environment
+    const getBaseUrl = () => {
+      const nodeEnv = process.env.NODE_ENV || 'development';
+      if (nodeEnv === 'production') {
+        return 'https://100ktracker.com';
+      }
+      return process.env.APP_URL || 'http://localhost:5173';
+    };
+
+    const baseUrl = getBaseUrl();
+    const adminDashboardUrl = `${baseUrl}/admin/promo-signups`;
+
+    const { full_name, email, phone, business_name, referral_source, experience_level, interests, comments } =
+      signupData;
+
+    const subject = `🎯 New Operandi Challenge Application: ${full_name}`;
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+                line-height: 1.6; 
+                color: #333; 
+                max-width: 600px; 
+                margin: 0 auto; 
+                background: #f8f9fa;
+                padding: 0;
+            }
+            .container { background: #f8f9fa; min-height: 100vh; }
+            .header { 
+                background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); 
+                color: white; 
+                padding: 30px 20px; 
+                text-align: center; 
+            }
+            .logo { 
+                font-size: 28px; 
+                font-weight: bold; 
+                margin-bottom: 8px;
+                letter-spacing: 1px;
+            }
+            .content { 
+                padding: 30px 20px; 
+                background: white; 
+                color: #333;
+            }
+            .applicant-info { 
+                background: #f8f9fa; 
+                border-left: 4px solid #3b82f6; 
+                padding: 20px; 
+                margin: 25px 0; 
+                border-radius: 8px;
+            }
+            .applicant-info h3 { 
+                color: #1e3a8a; 
+                margin: 0 0 15px 0; 
+                font-size: 18px;
+            }
+            .info-row { 
+                margin: 12px 0; 
+                padding: 8px 0;
+                border-bottom: 1px solid #e5e7eb;
+            }
+            .info-row:last-child { 
+                border-bottom: none; 
+            }
+            .label { 
+                font-weight: bold; 
+                color: #1e3a8a; 
+                display: inline-block;
+                min-width: 140px;
+            }
+            .value { 
+                color: #374151; 
+            }
+            .button { 
+                display: inline-block; 
+                background: #3b82f6; 
+                color: white; 
+                padding: 15px 35px; 
+                text-decoration: none; 
+                border-radius: 8px; 
+                font-weight: bold; 
+                margin: 25px 10px; 
+                transition: all 0.3s ease;
+                font-size: 16px;
+            }
+            .button:hover { 
+                background: #2563eb; 
+                color: white; 
+            }
+            .button.approve { 
+                background: #10b981; 
+            }
+            .button.approve:hover { 
+                background: #059669; 
+            }
+            .footer { 
+                padding: 25px 20px; 
+                text-align: center; 
+                font-size: 12px; 
+                color: #6b7280; 
+                background: #f8f9fa;
+            }
+            .footer p { 
+                margin: 5px 0; 
+            }
+            .highlight { 
+                background: #fef3c7; 
+                padding: 15px; 
+                border-radius: 8px; 
+                margin: 20px 0;
+                border: 1px solid #f59e0b;
+            }
+            .comments-section {
+                background: #f0f9ff;
+                border: 1px solid #0ea5e9;
+                padding: 15px;
+                border-radius: 8px;
+                margin: 20px 0;
+            }
+            .comments-section h4 {
+                color: #0c4a6e;
+                margin: 0 0 10px 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="logo">🎯 Operandi Challenge</div>
+                <p style="margin: 0; opacity: 0.9;">New Application Received</p>
+            </div>
+            
+            <div class="content">
+                <h2 style="color: #1e3a8a; margin-top: 0;">New Operandi Challenge Application</h2>
+                
+                <div class="highlight">
+                    <strong>📧 Action Required:</strong> A new application has been submitted for The Operandi Challenge. Please review and take appropriate action in the admin dashboard.
+                </div>
+                
+                <div class="applicant-info">
+                    <h3>👤 Applicant Information</h3>
+                    <div class="info-row">
+                        <span class="label">Full Name:</span>
+                        <span class="value">${full_name}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Email:</span>
+                        <span class="value">${email}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Phone:</span>
+                        <span class="value">${phone || 'Not provided'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Business Name:</span>
+                        <span class="value">${business_name || 'Not provided'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Experience Level:</span>
+                        <span class="value">${experience_level}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Referral Source:</span>
+                        <span class="value">${referral_source}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Interests:</span>
+                        <span class="value">${interests || 'Not specified'}</span>
+                    </div>
+                </div>
+
+                ${
+                  comments
+                    ? `
+                <div class="comments-section">
+                    <h4>💬 Additional Comments</h4>
+                    <p style="margin: 0; font-style: italic;">"${comments}"</p>
+                </div>
+                `
+                    : ''
+                }
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="${adminDashboardUrl}" class="button">Review in Admin Dashboard</a>
+                </div>
+                
+                <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
+                    <strong>Note:</strong> This application is currently in "pending" status and requires manual review before approval or rejection.
+                </p>
+            </div>
+            
+            <div class="footer">
+                <p>This notification was sent because a new Operandi Challenge application was submitted.</p>
+                <p>100K Tracker × Operandi Partnership Program</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    `;
+
+    const text = `
+New Operandi Challenge Application
+
+Applicant: ${full_name}
+Email: ${email}
+Phone: ${phone || 'Not provided'}
+Business: ${business_name || 'Not provided'}
+Experience Level: ${experience_level}
+Referral Source: ${referral_source}
+Interests: ${interests || 'Not specified'}
+
+${comments ? `Comments: "${comments}"` : ''}
+
+Please review this application in the admin dashboard:
+${adminDashboardUrl}
+
+This application is currently pending manual review.
+    `;
+
+    const mailOptions = {
+      from: `"100K Tracker Operandi" <admin@100ktracker.com>`,
+      to: adminEmail,
+      subject: subject,
+      text: text,
+      html: html,
+    };
+
+    try {
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log(`✅ Promo signup notification sent to ${adminEmail}`);
+
+      // If using test account, show preview URL
+      if (info.messageId && this.transporter.options.host === 'smtp.ethereal.email') {
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        console.log(`📧 Preview email: ${previewUrl}`);
+        return { success: true, messageId: info.messageId, previewUrl };
+      }
+
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      console.error(`❌ Failed to send promo signup notification:`, error.message);
+      throw error;
+    }
+  }
+
   // Test email configuration
   async testConfiguration() {
     // Ensure initialization is complete

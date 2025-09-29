@@ -184,7 +184,7 @@ function createUserTable() {
             );
           } else {
             console.log('Admin user already exists');
-            // Run migrations
+            // Run migrations and create promo admin user
             Promise.all([
               migrateStripeColumns(),
               migrateInvoicesTableColumns(),
@@ -193,7 +193,13 @@ function createUserTable() {
               migrateLoginTrackingColumns(),
             ])
               .then(() => {
-                resolve();
+                // Create promo admin user after migrations
+                createPromoAdminUser((err) => {
+                  if (err) {
+                    console.error('Error creating promo admin user (non-fatal):', err.message);
+                  }
+                  resolve();
+                });
               })
               .catch((migrationErr) => {
                 console.error('Error during migrations:', migrationErr.message);
@@ -624,6 +630,7 @@ function createAllTables() {
     createUserCardsTable(),
     createUserInvoicesTable(),
     createUserInvoiceItemsTable(),
+    createPromoSignupsTable(),
   ]);
 }
 
@@ -823,6 +830,38 @@ function createUserInvoiceItemsTable() {
           reject(err);
         } else {
           console.log('user_invoice_items table created/verified');
+          resolve();
+        }
+      },
+    );
+  });
+}
+
+function createPromoSignupsTable() {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `CREATE TABLE IF NOT EXISTS promo_signups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      full_name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      phone TEXT,
+      business_name TEXT,
+      referral_source TEXT,
+      experience_level TEXT,
+      interests TEXT,
+      comments TEXT,
+      signup_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+      status TEXT DEFAULT 'pending',
+      admin_notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+      (err) => {
+        if (err) {
+          console.error('Error creating promo_signups table:', err.message);
+          reject(err);
+        } else {
+          console.log('✓ Promo signups table created/verified');
           resolve();
         }
       },
@@ -1467,6 +1506,108 @@ function closeDB() {
   });
 }
 
+// Promo signup functions
+function createPromoSignup(signupData, callback) {
+  const { fullName, email, phone, businessName, referralSource, experienceLevel, interests, comments } = signupData;
+
+  const query = `
+    INSERT INTO promo_signups (
+      full_name, email, phone, business_name, referral_source, 
+      experience_level, interests, comments
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  const values = [fullName, email, phone, businessName, referralSource, experienceLevel, interests, comments];
+
+  db.run(query, values, function (err) {
+    if (callback) {
+      if (err) {
+        callback(err);
+      } else {
+        callback(null, { id: this.lastID, ...signupData });
+      }
+    }
+  });
+}
+
+function getAllPromoSignups(callback) {
+  const query = `
+    SELECT * FROM promo_signups 
+    ORDER BY created_at DESC
+  `;
+
+  db.all(query, [], callback);
+}
+
+function getPromoSignupById(id, callback) {
+  db.get('SELECT * FROM promo_signups WHERE id = ?', [id], callback);
+}
+
+function updatePromoSignupStatus(id, status, adminNotes, callback) {
+  const query = `
+    UPDATE promo_signups 
+    SET status = ?, admin_notes = ?, updated_at = CURRENT_TIMESTAMP 
+    WHERE id = ?
+  `;
+
+  db.run(query, [status, adminNotes, id], callback);
+}
+
+function getPromoSignupsByStatus(status, callback) {
+  const query = `
+    SELECT * FROM promo_signups 
+    WHERE status = ? 
+    ORDER BY created_at DESC
+  `;
+
+  db.all(query, [status], callback);
+}
+
+// Create or verify promo admin user exists
+function createPromoAdminUser(callback) {
+  const adminUsername = '100ktrackeradmin';
+  const adminPassword = 'Nn03241929$&@';
+  const adminEmail = '100kprofittracker@gmail.com';
+
+  // Check if promo admin user exists
+  db.get('SELECT * FROM users WHERE username = ?', [adminUsername], (err, user) => {
+    if (err) {
+      return callback(err);
+    }
+
+    if (user) {
+      console.log('✓ Promo admin user already exists');
+      return callback(null, user);
+    }
+
+    // Create the promo admin user
+    console.log('Creating promo admin user...');
+    const hashedPassword = bcrypt.hashSync(adminPassword, 10);
+
+    db.run(
+      'INSERT INTO users (username, hashed_password, email, temporary_password) VALUES (?, ?, ?, ?)',
+      [adminUsername, hashedPassword, adminEmail, 0],
+      function (err) {
+        if (err) {
+          console.error('Error creating promo admin user:', err.message);
+          return callback(err);
+        }
+
+        console.log('✓ Promo admin user created successfully');
+
+        // Return the created user info
+        db.get('SELECT * FROM users WHERE id = ?', [this.lastID], callback);
+      },
+    );
+  });
+}
+
+// Verify if a user is the promo admin
+function isPromoAdmin(username, callback) {
+  const adminUsername = '100ktrackeradmin';
+  callback(null, username === adminUsername);
+}
+
 module.exports = {
   db,
   getDb,
@@ -1514,4 +1655,13 @@ module.exports = {
   getUserCards,
   createUserCard,
   deleteUserCard,
+  // Promo signups
+  createPromoSignup,
+  getAllPromoSignups,
+  getPromoSignupById,
+  updatePromoSignupStatus,
+  getPromoSignupsByStatus,
+  // Promo admin
+  createPromoAdminUser,
+  isPromoAdmin,
 };

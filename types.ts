@@ -166,3 +166,51 @@ export interface Invoice {
     payment_intent?: string;
   };
 }
+
+// Promo signup types for Operandi Challenge
+export interface OperandiSignupData {
+  fullName: string;
+  email: string;
+  phone: string;
+  businessName: string;
+  referralSource: string;
+  experienceLevel: string;
+  interests: string;
+  comments: string;
+}
+
+export interface PromoSignup {
+  id: number;
+  full_name: string;
+  email: string;
+  phone?: string;
+  business_name: string;
+  referral_source?: string;
+  experience_level?: string;
+  interests?: string;
+  comments?: string;
+  signup_date: string;
+  status: 'pending' | 'approved' | 'rejected';
+  admin_notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PromoSignupResponse {
+  success: boolean;
+  message: string;
+  signupId?: number;
+  timestamp: string;
+}
+
+export interface PromoSignupsListResponse {
+  success: boolean;
+  timestamp: string;
+  summary: {
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+  };
+  signups: PromoSignup[];
+}

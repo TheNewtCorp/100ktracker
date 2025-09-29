@@ -1,4 +1,6 @@
 // Centralized API service for all backend communication
+import type { OperandiSignupData, PromoSignup, PromoSignupResponse, PromoSignupsListResponse } from '../types';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
 class ApiService {
@@ -274,6 +276,54 @@ class ApiService {
   async deleteLead(id: string) {
     return await this.request(`/leads/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  // Promo signup API methods
+  async submitOperandiSignup(data: OperandiSignupData): Promise<PromoSignupResponse> {
+    return await this.request('/promo/operandi-challenge', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getPromoSignups(status?: string): Promise<PromoSignupsListResponse> {
+    const params = status ? `?status=${encodeURIComponent(status)}` : '';
+    return await this.request(`/promo/admin/signups${params}`);
+  }
+
+  async getPromoSignup(id: number): Promise<{ success: boolean; signup: PromoSignup }> {
+    return await this.request(`/promo/admin/signups/${id}`);
+  }
+
+  async updatePromoSignupStatus(
+    id: number,
+    status: 'pending' | 'approved' | 'rejected',
+    adminNotes?: string,
+  ): Promise<{ success: boolean; message: string; signup: PromoSignup }> {
+    return await this.request(`/promo/admin/signups/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, adminNotes }),
+    });
+  }
+
+  async createAccountFromPromoSignup(
+    id: number,
+    temporaryPassword?: string,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    account: {
+      userId: number;
+      username: string;
+      email: string;
+      temporaryPassword: string;
+    };
+    signup: PromoSignup;
+  }> {
+    return await this.request(`/promo/admin/signups/${id}/create-account`, {
+      method: 'POST',
+      body: JSON.stringify({ temporaryPassword }),
     });
   }
 }
