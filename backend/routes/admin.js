@@ -12,6 +12,7 @@ const {
   getUserByUsername,
   findUser,
   getAllUsers,
+  getAllUsersLoginStats,
   getAllPromoSignups,
 } = require('../db');
 
@@ -569,13 +570,73 @@ router.get('/users', authenticateGeneralAdmin, async (req, res) => {
   try {
     const { page = 1, limit = 10, search, subscriptionTier, sortBy = 'created_at', sortOrder = 'desc' } = req.query;
 
-    // For now, return mock data structure
-    const users = [];
-    const totalUsers = 0;
-    const totalPages = 1;
+    // Get all users from database
+    const allUsers = await new Promise((resolve, reject) => {
+      getAllUsersLoginStats((err, users) => {
+        if (err) reject(err);
+        else resolve(users || []);
+      });
+    });
+
+    // Apply filters
+    let filteredUsers = allUsers.filter((user) => {
+      // Search filter
+      if (search) {
+        const searchLower = search.toLowerCase();
+        const matchesSearch =
+          user.email?.toLowerCase().includes(searchLower) || user.username?.toLowerCase().includes(searchLower);
+        if (!matchesSearch) return false;
+      }
+
+      // Subscription tier filter
+      if (subscriptionTier && subscriptionTier !== 'all') {
+        if (user.subscription_tier !== subscriptionTier) return false;
+      }
+
+      return true;
+    });
+
+    // Apply sorting
+    filteredUsers.sort((a, b) => {
+      let aVal = a[sortBy];
+      let bVal = b[sortBy];
+
+      // Handle null values
+      if (aVal === null || aVal === undefined) aVal = '';
+      if (bVal === null || bVal === undefined) bVal = '';
+
+      // Convert to strings for comparison
+      aVal = String(aVal);
+      bVal = String(bVal);
+
+      if (sortOrder === 'desc') {
+        return bVal.localeCompare(aVal);
+      } else {
+        return aVal.localeCompare(bVal);
+      }
+    });
+
+    // Apply pagination
+    const totalUsers = filteredUsers.length;
+    const totalPages = Math.ceil(totalUsers / limit);
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + parseInt(limit);
+    const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+
+    // Format users for frontend
+    const formattedUsers = paginatedUsers.map((user) => ({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      subscription_tier: user.subscription_tier || 'free',
+      is_active: user.status === 1,
+      created_at: user.registration_date,
+      last_login: user.last_login_date,
+      login_count: user.login_count || 0,
+    }));
 
     res.json({
-      users,
+      users: formattedUsers,
       totalUsers,
       totalPages,
       currentPage: parseInt(page),
@@ -588,9 +649,7 @@ router.get('/users', authenticateGeneralAdmin, async (req, res) => {
       message: error.message,
     });
   }
-});
-
-// Get user by ID
+}); // Get user by ID
 router.get('/users/:id', authenticateGeneralAdmin, async (req, res) => {
   try {
     const { id } = req.params;
