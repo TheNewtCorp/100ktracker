@@ -4,7 +4,9 @@ class AdminApiService {
   private token: string | null = null;
 
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    // Use the same environment variable as the main API service
+    // In production, this should be set to https://one00ktracker.onrender.com/api
+    this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://one00ktracker.onrender.com/api';
   }
 
   setToken(token: string) {
