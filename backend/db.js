@@ -193,13 +193,29 @@ function createUserTable() {
               migrateLoginTrackingColumns(),
             ])
               .then(() => {
-                // Create promo admin user after migrations
-                createPromoAdminUser((err) => {
-                  if (err) {
-                    console.error('Error creating promo admin user (non-fatal):', err.message);
-                  }
-                  resolve();
-                });
+                // Create admin users and audit table after migrations
+                return Promise.all([
+                  createProvisioningAuditTable(),
+                  new Promise((resolve) => {
+                    createPromoAdminUser((err) => {
+                      if (err) {
+                        console.error('Error creating promo admin user (non-fatal):', err.message);
+                      }
+                      resolve();
+                    });
+                  }),
+                  new Promise((resolve) => {
+                    createGeneralAdminUser((err) => {
+                      if (err) {
+                        console.error('Error creating general admin user (non-fatal):', err.message);
+                      }
+                      resolve();
+                    });
+                  }),
+                ]);
+              })
+              .then(() => {
+                resolve();
               })
               .catch((migrationErr) => {
                 console.error('Error during migrations:', migrationErr.message);
@@ -1608,6 +1624,148 @@ function isPromoAdmin(username, callback) {
   callback(null, username === adminUsername);
 }
 
+// Create or verify general admin user exists
+function createGeneralAdminUser(callback) {
+  const adminUsername = '100ktrackeradmin-general';
+  const adminPassword = 'Nn03241929$&@Gen';
+  const adminEmail = '100kprofittracker+general@gmail.com';
+
+  // Check if general admin user exists
+  db.get('SELECT * FROM users WHERE username = ?', [adminUsername], (err, user) => {
+    if (err) {
+      return callback(err);
+    }
+
+    if (user) {
+      console.log('✓ General admin user already exists');
+      return callback(null, user);
+    }
+
+    // Create the general admin user
+    console.log('Creating general admin user...');
+    const hashedPassword = bcrypt.hashSync(adminPassword, 10);
+
+    db.run(
+      'INSERT INTO users (username, hashed_password, email, temporary_password) VALUES (?, ?, ?, ?)',
+      [adminUsername, hashedPassword, adminEmail, 0],
+      function (err) {
+        if (err) {
+          console.error('Error creating general admin user:', err.message);
+          return callback(err);
+        }
+
+        console.log('✓ General admin user created successfully');
+
+        // Return the created user info
+        db.get('SELECT * FROM users WHERE id = ?', [this.lastID], callback);
+      },
+    );
+  });
+}
+
+// Verify if a user is the general admin
+function isGeneralAdmin(username, callback) {
+  const adminUsername = '100ktrackeradmin-general';
+  callback(null, username === adminUsername);
+}
+
+// Database transaction wrapper for account provisioning
+function runProvisioningTransaction(operations, callback) {
+  if (!db) {
+    return callback(new Error('Database not initialized'));
+  }
+
+  // Start transaction
+  db.run('BEGIN TRANSACTION', (err) => {
+    if (err) {
+      return callback(err);
+    }
+
+    // Execute operations sequentially
+    const executeNext = (index, results = []) => {
+      if (index >= operations.length) {
+        // All operations successful, commit
+        db.run('COMMIT', (commitErr) => {
+          if (commitErr) {
+            return callback(commitErr);
+          }
+          callback(null, results);
+        });
+        return;
+      }
+
+      const operation = operations[index];
+      operation((operationErr, result) => {
+        if (operationErr) {
+          // Rollback on error
+          db.run('ROLLBACK', () => {
+            callback(operationErr);
+          });
+          return;
+        }
+
+        results.push(result);
+        executeNext(index + 1, results);
+      });
+    };
+
+    executeNext(0);
+  });
+}
+
+// Add audit logging for provisioning attempts
+function logProvisioningAttempt(data, callback) {
+  const query = `
+    INSERT INTO provisioning_audit (
+      email, full_name, subscription_tier, admin_user, 
+      step_completed, success, error_message, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `;
+
+  db.run(
+    query,
+    [
+      data.email,
+      data.fullName,
+      data.subscriptionTier,
+      data.adminUser,
+      data.stepCompleted,
+      data.success ? 1 : 0,
+      data.errorMessage || null,
+    ],
+    callback,
+  );
+}
+
+// Create provisioning audit table
+function createProvisioningAuditTable() {
+  const createTableQuery = `
+    CREATE TABLE IF NOT EXISTS provisioning_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      full_name TEXT,
+      subscription_tier TEXT,
+      admin_user TEXT,
+      step_completed TEXT,
+      success INTEGER,
+      error_message TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+
+  return new Promise((resolve, reject) => {
+    db.run(createTableQuery, (err) => {
+      if (err) {
+        console.error('Error creating provisioning_audit table:', err);
+        reject(err);
+      } else {
+        console.log('✓ Provisioning audit table created/verified');
+        resolve();
+      }
+    });
+  });
+}
+
 module.exports = {
   db,
   getDb,
@@ -1664,4 +1822,10 @@ module.exports = {
   // Promo admin
   createPromoAdminUser,
   isPromoAdmin,
+  // General admin & provisioning
+  createGeneralAdminUser,
+  isGeneralAdmin,
+  runProvisioningTransaction,
+  logProvisioningAttempt,
+  createProvisioningAuditTable,
 };

@@ -3,6 +3,8 @@ const express = require('express');
 const router = express.Router();
 const emailService = require('../email-service');
 const { authenticatePromoAdmin } = require('../middleware');
+const axios = require('axios'); // For internal API calls to provisioning system
+const jwt = require('jsonwebtoken'); // For creating admin tokens
 const {
   createPromoSignup,
   getAllPromoSignups,
@@ -284,16 +286,19 @@ router.put('/admin/signups/:id', authenticatePromoAdmin, (req, res) => {
   });
 });
 
-// Admin endpoint: Approve signup and create user account
-router.post('/admin/signups/:id/create-account', authenticatePromoAdmin, (req, res) => {
+// Admin endpoint: Approve signup and create user account using provisioning system
+router.post('/admin/signups/:id/create-account', authenticatePromoAdmin, async (req, res) => {
   const { id } = req.params;
   const { temporaryPassword } = req.body;
 
-  getPromoSignupById(id, (getErr, signup) => {
-    if (getErr) {
-      console.error('Error fetching signup for account creation:', getErr);
-      return res.status(500).json({ error: 'Failed to fetch signup' });
-    }
+  try {
+    // Get the signup details
+    const signup = await new Promise((resolve, reject) => {
+      getPromoSignupById(id, (getErr, signup) => {
+        if (getErr) reject(getErr);
+        else resolve(signup);
+      });
+    });
 
     if (!signup) {
       return res.status(404).json({ error: 'Signup not found' });
@@ -306,57 +311,163 @@ router.post('/admin/signups/:id/create-account', authenticatePromoAdmin, (req, r
       });
     }
 
-    // Generate username from email (before @ symbol)
-    const username = signup.email.split('@')[0].toLowerCase();
+    // Use the provisioning system from admin routes
+    const provisioningData = {
+      email: signup.email,
+      fullName: signup.full_name,
+      subscriptionTier: 'operandi', // Special tier for Operandi Challenge participants
+      temporaryPassword: temporaryPassword,
+      sendEmail: true,
+      promoSignupId: signup.id,
+    };
 
-    // Generate a secure temporary password if not provided
-    const password = temporaryPassword || generateSecurePassword();
+    // Make internal request to provisioning API
+    const adminRoutes = require('./admin');
 
-    // Create the user account
-    addEnhancedUser(username, password, signup.email, 1, (userErr, userId) => {
-      if (userErr) {
-        console.error('Error creating user account:', userErr);
+    // Create a mock request/response for internal API call
+    const mockReq = {
+      body: provisioningData,
+      user: { username: '100ktrackeradmin' }, // Promo admin acts as general admin for this operation
+    };
 
-        if (userErr.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-          return res.status(409).json({
-            error: 'Username already exists',
-            suggestion: 'Try a different username or contact the user directly',
-          });
-        }
+    const mockRes = {
+      status: function (code) {
+        this.statusCode = code;
+        return this;
+      },
+      json: function (data) {
+        this.responseData = data;
+        return this;
+      },
+    };
 
-        return res.status(500).json({ error: 'Failed to create user account' });
-      }
+    // Try to use the provisioning system
+    try {
+      // Since we can't easily call the route function directly, let's make an HTTP request
+      const axios = require('axios');
+      const baseUrl = process.env.APP_URL || 'http://localhost:3001';
+
+      // Get JWT token for general admin (we'll need to create one)
+      const jwt = require('jsonwebtoken');
+      const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
+
+      const adminToken = jwt.sign({ username: '100ktrackeradmin-general', role: 'general_admin' }, jwtSecret, {
+        expiresIn: '1h',
+      });
+
+      const response = await axios.post(`${baseUrl}/api/admin/provision-account`, provisioningData, {
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const provisioningResult = response.data;
 
       // Update the signup status to approved
-      updatePromoSignupStatus(id, 'approved', `Account created - User ID: ${userId}`, (statusErr) => {
-        if (statusErr) {
-          console.error('Error updating signup status after account creation:', statusErr);
-          // Don't fail the request, account was created successfully
-        }
-
-        console.log(`Created account for Operandi signup ${id}: ${username} (User ID: ${userId})`);
-
-        res.json({
-          success: true,
-          message: 'User account created successfully',
-          account: {
-            userId,
-            username,
-            email: signup.email,
-            temporaryPassword: password,
+      await new Promise((resolve, reject) => {
+        updatePromoSignupStatus(
+          id,
+          'approved',
+          `Account created via provisioning system - User ID: ${provisioningResult.account.userId}`,
+          (statusErr) => {
+            if (statusErr) reject(statusErr);
+            else resolve();
           },
-          signup: {
-            id: signup.id,
-            status: 'approved',
-            fullName: signup.full_name,
-            businessName: signup.business_name,
-          },
-        });
-
-        // TODO: Send welcome email with account details
+        );
       });
+
+      console.log(`✅ Created Operandi account for signup ${id}: ${provisioningResult.account.username}`);
+
+      res.json({
+        success: true,
+        message: 'Operandi Challenge account created successfully',
+        account: provisioningResult.account,
+        subscription: provisioningResult.subscription,
+        email: provisioningResult.email,
+        signup: {
+          id: signup.id,
+          status: 'approved',
+          fullName: signup.full_name,
+          businessName: signup.business_name,
+        },
+        provisioning: {
+          steps: provisioningResult.steps,
+          timestamp: provisioningResult.timestamp,
+        },
+      });
+    } catch (provisioningError) {
+      console.error('❌ Provisioning system failed, falling back to manual creation:', provisioningError.message);
+
+      // Fallback to original manual account creation
+      const username = signup.email.split('@')[0].toLowerCase();
+      const password = temporaryPassword || generateSecurePassword();
+
+      const userId = await new Promise((resolve, reject) => {
+        addEnhancedUser(username, password, signup.email, 1, (userErr, userId) => {
+          if (userErr) reject(userErr);
+          else resolve(userId);
+        });
+      });
+
+      // Update the signup status to approved
+      await new Promise((resolve, reject) => {
+        updatePromoSignupStatus(
+          id,
+          'approved',
+          `Account created manually (fallback) - User ID: ${userId}`,
+          (statusErr) => {
+            if (statusErr) reject(statusErr);
+            else resolve();
+          },
+        );
+      });
+
+      console.log(`⚠️ Created account using fallback method for signup ${id}: ${username} (User ID: ${userId})`);
+
+      res.json({
+        success: true,
+        message: 'User account created successfully (fallback method)',
+        account: {
+          userId,
+          username,
+          email: signup.email,
+          temporaryPassword: password,
+        },
+        subscription: {
+          tier: 'free',
+          status: 'active',
+          note: 'Default tier assigned, may need manual upgrade to Operandi',
+        },
+        email: {
+          sent: false,
+          reason: 'Fallback method used, manual email needed',
+        },
+        signup: {
+          id: signup.id,
+          status: 'approved',
+          fullName: signup.full_name,
+          businessName: signup.business_name,
+        },
+        fallback: true,
+        provisioningError: provisioningError.message,
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error in create-account endpoint:', error.message);
+
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({
+        error: 'Account already exists',
+        message: 'This email already has an account. Please contact the user directly.',
+      });
+    }
+
+    res.status(500).json({
+      error: 'Failed to create user account',
+      message: error.message,
     });
-  });
+  }
 });
 
 // Helper function to generate secure password

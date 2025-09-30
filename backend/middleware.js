@@ -1,6 +1,6 @@
 // Shared authentication middleware for all routes
 const jwt = require('jsonwebtoken');
-const { isPromoAdmin } = require('./db');
+const { isPromoAdmin, isGeneralAdmin } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
@@ -61,6 +61,43 @@ function authenticatePromoAdmin(req, res, next) {
   });
 }
 
+// Special authentication middleware for general admin routes
+function authenticateGeneralAdmin(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Missing authorization header' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ error: 'Missing token' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+
+    // Check if the user is the general admin
+    isGeneralAdmin(user.username, (adminErr, isAdmin) => {
+      if (adminErr) {
+        console.error('Error checking general admin status:', adminErr);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+
+      if (!isAdmin) {
+        return res.status(403).json({
+          error: 'Access denied',
+          message: 'This endpoint requires general admin privileges',
+        });
+      }
+
+      req.user = user;
+      next();
+    });
+  });
+}
+
 // Validation helper functions
 function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -78,6 +115,7 @@ function validatePositiveNumber(value) {
 module.exports = {
   authenticateJWT,
   authenticatePromoAdmin,
+  authenticateGeneralAdmin,
   validateEmail,
   validateDate,
   validatePositiveNumber,
