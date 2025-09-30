@@ -487,7 +487,7 @@ router.post('/resend-invitation', authenticateGeneralAdmin, async (req, res) => 
 router.get('/dashboard-stats', authenticateGeneralAdmin, async (req, res) => {
   try {
     console.log('📊 Fetching dashboard statistics...');
-    
+
     // Get all users to calculate stats
     const users = await getAllUsers();
 
@@ -506,14 +506,14 @@ router.get('/dashboard-stats', authenticateGeneralAdmin, async (req, res) => {
     // Get recent provisioning attempts (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     const recentProvisioningAttempts = await new Promise((resolve, reject) => {
       const db = require('../db').db;
       if (!db) {
         resolve(0);
         return;
       }
-      
+
       db.all(
         'SELECT COUNT(*) as count FROM provisioning_audit WHERE created_at >= ?',
         [thirtyDaysAgo.toISOString()],
@@ -524,7 +524,7 @@ router.get('/dashboard-stats', authenticateGeneralAdmin, async (req, res) => {
           } else {
             resolve(rows?.[0]?.count || 0);
           }
-        }
+        },
       );
     });
 
@@ -536,7 +536,7 @@ router.get('/dashboard-stats', authenticateGeneralAdmin, async (req, res) => {
     };
 
     if (Array.isArray(users)) {
-      users.forEach(user => {
+      users.forEach((user) => {
         const tier = user.subscription_tier || 'free';
         if (subscriptionStats.hasOwnProperty(tier)) {
           subscriptionStats[tier]++;
