@@ -14,6 +14,7 @@ const {
   getAllUsers,
   getAllUsersLoginStats,
   getAllPromoSignups,
+  updateUser,
 } = require('../db');
 
 // Define subscription tier configurations
@@ -733,5 +734,165 @@ router.get('/provisioning-stats', authenticateGeneralAdmin, async (req, res) => 
     });
   }
 });
+
+// Update user endpoint
+router.put('/users/:userId', authenticateGeneralAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const {
+      username,
+      email,
+      subscription_tier,
+      subscription_status,
+      is_active,
+      subscription_price,
+      subscription_start_date,
+      subscription_end_date,
+    } = req.body;
+
+    // Validate userId
+    if (!userId || isNaN(parseInt(userId))) {
+      return res.status(400).json({
+        error: 'Invalid user ID',
+        message: 'User ID must be a valid number',
+      });
+    }
+
+    // Validate required fields and data types
+    const updateData = {};
+
+    if (username !== undefined) {
+      if (typeof username !== 'string' || username.trim().length === 0) {
+        return res.status(400).json({
+          error: 'Invalid username',
+          message: 'Username must be a non-empty string',
+        });
+      }
+      updateData.username = username.trim();
+    }
+
+    if (email !== undefined) {
+      if (typeof email !== 'string' || !email.includes('@')) {
+        return res.status(400).json({
+          error: 'Invalid email',
+          message: 'Email must be a valid email address',
+        });
+      }
+      updateData.email = email.trim();
+    }
+
+    if (subscription_tier !== undefined) {
+      const validTiers = ['free', 'platinum', 'operandi'];
+      if (!validTiers.includes(subscription_tier)) {
+        return res.status(400).json({
+          error: 'Invalid subscription tier',
+          message: `Subscription tier must be one of: ${validTiers.join(', ')}`,
+        });
+      }
+      updateData.subscription_tier = subscription_tier;
+    }
+
+    if (subscription_status !== undefined) {
+      const validStatuses = ['active', 'inactive', 'cancelled', 'trialing'];
+      if (!validStatuses.includes(subscription_status)) {
+        return res.status(400).json({
+          error: 'Invalid subscription status',
+          message: `Subscription status must be one of: ${validStatuses.join(', ')}`,
+        });
+      }
+      updateData.subscription_status = subscription_status;
+    }
+
+    if (is_active !== undefined) {
+      updateData.status = is_active ? 1 : 0;
+    }
+
+    if (subscription_price !== undefined) {
+      const price = parseFloat(subscription_price);
+      if (isNaN(price) || price < 0) {
+        return res.status(400).json({
+          error: 'Invalid subscription price',
+          message: 'Subscription price must be a valid positive number',
+        });
+      }
+      updateData.subscription_price = price;
+    }
+
+    if (subscription_start_date !== undefined) {
+      if (subscription_start_date && !isValidDate(subscription_start_date)) {
+        return res.status(400).json({
+          error: 'Invalid subscription start date',
+          message: 'Subscription start date must be a valid date',
+        });
+      }
+      updateData.subscription_start_date = subscription_start_date;
+    }
+
+    if (subscription_end_date !== undefined) {
+      if (subscription_end_date && !isValidDate(subscription_end_date)) {
+        return res.status(400).json({
+          error: 'Invalid subscription end date',
+          message: 'Subscription end date must be a valid date',
+        });
+      }
+      updateData.subscription_end_date = subscription_end_date;
+    }
+
+    // Check if there's anything to update
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        error: 'No valid fields to update',
+        message: 'At least one valid field must be provided for update',
+      });
+    }
+
+    // Update user in database
+    await new Promise((resolve, reject) => {
+      updateUser(parseInt(userId), updateData, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+    res.json({
+      success: true,
+      message: 'User updated successfully',
+      userId: parseInt(userId),
+      updatedFields: Object.keys(updateData),
+    });
+  } catch (error) {
+    console.error('❌ Update user failed:', error.message);
+
+    if (error.message.includes('User not found')) {
+      return res.status(404).json({
+        error: 'User not found',
+        message: 'The specified user does not exist',
+      });
+    }
+
+    if (error.message.includes('UNIQUE constraint failed')) {
+      const field = error.message.includes('email') ? 'email' : 'username';
+      return res.status(400).json({
+        error: 'Duplicate value',
+        message: `A user with this ${field} already exists`,
+      });
+    }
+
+    res.status(500).json({
+      error: 'Failed to update user',
+      message: error.message,
+    });
+  }
+});
+
+// Helper function to validate date strings
+function isValidDate(dateString) {
+  if (!dateString) return true; // Allow null/empty dates
+  const date = new Date(dateString);
+  return date instanceof Date && !isNaN(date);
+}
 
 module.exports = router;

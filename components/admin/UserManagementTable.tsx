@@ -97,6 +97,20 @@ const UserManagementTable: React.FC = () => {
     setShowEditModal(true);
   };
 
+  const handleUpdateUser = async (updatedData: Partial<User>) => {
+    if (!selectedUser) return;
+
+    try {
+      await adminApiService.updateUser(selectedUser.id, updatedData);
+      setShowEditModal(false);
+      setSelectedUser(null);
+      await loadUsers(); // Refresh the user list
+      alert('User updated successfully');
+    } catch (err: any) {
+      alert(`Failed to update user: ${err.message}`);
+    }
+  };
+
   const getTierBadge = (tier: string) => {
     const tiers = {
       free: { label: 'Free', color: 'bg-blue-100 text-blue-800', icon: '🆓' },
@@ -378,22 +392,287 @@ const UserManagementTable: React.FC = () => {
         )}
       </div>
 
-      {/* Edit User Modal - Placeholder for now */}
+      {/* Edit User Modal */}
       {showEditModal && selectedUser && (
-        <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>
-          <div className='bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4'>
-            <h3 className='text-xl font-bold text-white mb-4'>Edit User</h3>
-            <p className='text-gray-300 mb-4'>Editing: {selectedUser.email}</p>
-            <p className='text-gray-400 text-sm mb-4'>User edit functionality will be implemented here.</p>
+        <EditUserModal
+          user={selectedUser}
+          onSave={handleUpdateUser}
+          onCancel={() => {
+            setShowEditModal(false);
+            setSelectedUser(null);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// Edit User Modal Component
+interface EditUserModalProps {
+  user: User;
+  onSave: (updatedData: Partial<User>) => Promise<void>;
+  onCancel: () => void;
+}
+
+const EditUserModal: React.FC<EditUserModalProps> = ({ user, onSave, onCancel }) => {
+  const [formData, setFormData] = useState({
+    username: user.username || '',
+    email: user.email || '',
+    subscription_tier: user.subscription_tier || 'free',
+    is_active: user.is_active,
+    subscription_status: 'active', // Default value
+    subscription_price: 0,
+    subscription_start_date: '',
+    subscription_end_date: '',
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.username.trim()) {
+      newErrors.username = 'Username is required';
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!formData.email.includes('@')) {
+      newErrors.email = 'Email must be valid';
+    }
+
+    if (formData.subscription_price < 0) {
+      newErrors.subscription_price = 'Price cannot be negative';
+    }
+
+    if (formData.subscription_start_date && formData.subscription_end_date) {
+      if (new Date(formData.subscription_start_date) > new Date(formData.subscription_end_date)) {
+        newErrors.subscription_end_date = 'End date must be after start date';
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const updateData: any = {};
+
+      // Only include changed fields
+      if (formData.username !== user.username) {
+        updateData.username = formData.username;
+      }
+      if (formData.email !== user.email) {
+        updateData.email = formData.email;
+      }
+      if (formData.subscription_tier !== user.subscription_tier) {
+        updateData.subscription_tier = formData.subscription_tier;
+      }
+      if (formData.is_active !== user.is_active) {
+        updateData.is_active = formData.is_active;
+      }
+      if (formData.subscription_status) {
+        updateData.subscription_status = formData.subscription_status;
+      }
+      if (formData.subscription_price > 0) {
+        updateData.subscription_price = formData.subscription_price;
+      }
+      if (formData.subscription_start_date) {
+        updateData.subscription_start_date = formData.subscription_start_date;
+      }
+      if (formData.subscription_end_date) {
+        updateData.subscription_end_date = formData.subscription_end_date;
+      }
+
+      await onSave(updateData);
+    } catch (error) {
+      console.error('Error updating user:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleInputChange = (field: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  return (
+    <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className='bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto'
+      >
+        <div className='flex items-center justify-between mb-6'>
+          <h3 className='text-xl font-bold text-white'>Edit User</h3>
+          <button onClick={onCancel} className='text-gray-400 hover:text-white transition-colors'>
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className='space-y-4'>
+          {/* Basic Information */}
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+            <div>
+              <label className='block text-sm font-medium text-gray-300 mb-1'>Username *</label>
+              <input
+                type='text'
+                value={formData.username}
+                onChange={(e) => handleInputChange('username', e.target.value)}
+                className={`w-full px-3 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  errors.username ? 'border-red-500' : 'border-gray-600'
+                }`}
+                placeholder='Enter username'
+              />
+              {errors.username && <p className='text-red-400 text-sm mt-1'>{errors.username}</p>}
+            </div>
+
+            <div>
+              <label className='block text-sm font-medium text-gray-300 mb-1'>Email *</label>
+              <input
+                type='email'
+                value={formData.email}
+                onChange={(e) => handleInputChange('email', e.target.value)}
+                className={`w-full px-3 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  errors.email ? 'border-red-500' : 'border-gray-600'
+                }`}
+                placeholder='Enter email'
+              />
+              {errors.email && <p className='text-red-400 text-sm mt-1'>{errors.email}</p>}
+            </div>
+          </div>
+
+          {/* Account Status */}
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+            <div>
+              <label className='block text-sm font-medium text-gray-300 mb-1'>Account Status</label>
+              <select
+                value={formData.is_active ? 'active' : 'inactive'}
+                onChange={(e) => handleInputChange('is_active', e.target.value === 'active')}
+                className='w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+              >
+                <option value='active'>✅ Active</option>
+                <option value='inactive'>❌ Inactive</option>
+              </select>
+            </div>
+
+            <div>
+              <label className='block text-sm font-medium text-gray-300 mb-1'>Subscription Tier</label>
+              <select
+                value={formData.subscription_tier}
+                onChange={(e) => handleInputChange('subscription_tier', e.target.value)}
+                className='w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+              >
+                <option value='free'>🆓 Free</option>
+                <option value='platinum'>💎 Platinum</option>
+                <option value='operandi'>🎯 Operandi</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Subscription Details */}
+          <div className='border-t border-gray-700 pt-4'>
+            <h4 className='text-lg font-medium text-white mb-3'>Subscription Details</h4>
+
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+              <div>
+                <label className='block text-sm font-medium text-gray-300 mb-1'>Subscription Status</label>
+                <select
+                  value={formData.subscription_status}
+                  onChange={(e) => handleInputChange('subscription_status', e.target.value)}
+                  className='w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+                >
+                  <option value='active'>Active</option>
+                  <option value='inactive'>Inactive</option>
+                  <option value='cancelled'>Cancelled</option>
+                  <option value='trialing'>Trialing</option>
+                </select>
+              </div>
+
+              <div>
+                <label className='block text-sm font-medium text-gray-300 mb-1'>Subscription Price ($)</label>
+                <input
+                  type='number'
+                  min='0'
+                  step='0.01'
+                  value={formData.subscription_price}
+                  onChange={(e) => handleInputChange('subscription_price', parseFloat(e.target.value) || 0)}
+                  className={`w-full px-3 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.subscription_price ? 'border-red-500' : 'border-gray-600'
+                  }`}
+                  placeholder='0.00'
+                />
+                {errors.subscription_price && <p className='text-red-400 text-sm mt-1'>{errors.subscription_price}</p>}
+              </div>
+            </div>
+
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mt-4'>
+              <div>
+                <label className='block text-sm font-medium text-gray-300 mb-1'>Subscription Start Date</label>
+                <input
+                  type='date'
+                  value={formData.subscription_start_date}
+                  onChange={(e) => handleInputChange('subscription_start_date', e.target.value)}
+                  className='w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+                />
+              </div>
+
+              <div>
+                <label className='block text-sm font-medium text-gray-300 mb-1'>Subscription End Date</label>
+                <input
+                  type='date'
+                  value={formData.subscription_end_date}
+                  onChange={(e) => handleInputChange('subscription_end_date', e.target.value)}
+                  className={`w-full px-3 py-2 bg-gray-700 border rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.subscription_end_date ? 'border-red-500' : 'border-gray-600'
+                  }`}
+                />
+                {errors.subscription_end_date && (
+                  <p className='text-red-400 text-sm mt-1'>{errors.subscription_end_date}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className='flex justify-end space-x-3 pt-4 border-t border-gray-700'>
             <button
-              onClick={() => setShowEditModal(false)}
-              className='w-full px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors'
+              type='button'
+              onClick={onCancel}
+              className='px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors'
             >
-              Close
+              Cancel
+            </button>
+            <button
+              type='submit'
+              disabled={isLoading}
+              className='px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors flex items-center'
+            >
+              {isLoading ? (
+                <>
+                  <div className='animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2'></div>
+                  Updating...
+                </>
+              ) : (
+                'Save Changes'
+              )}
             </button>
           </div>
-        </div>
-      )}
+        </form>
+      </motion.div>
     </div>
   );
 };

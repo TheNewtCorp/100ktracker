@@ -119,9 +119,14 @@ class AdminApiService {
   async updateUser(
     userId: number,
     userData: {
+      username?: string;
       email?: string;
       subscription_tier?: string;
+      subscription_status?: string;
       is_active?: boolean;
+      subscription_price?: number;
+      subscription_start_date?: string;
+      subscription_end_date?: string;
       admin_notes?: string;
     },
   ) {

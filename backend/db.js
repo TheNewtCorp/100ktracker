@@ -1324,6 +1324,97 @@ function updateUsername(oldUsername, newUsername, callback = () => {}) {
   }
 }
 
+// Comprehensive user update function for admin panel
+function updateUser(userId, userData, callback = () => {}) {
+  if (!db) {
+    initDB();
+    getDb();
+    if (!db) {
+      callback(new Error('Database not initialized'));
+      return;
+    }
+  }
+
+  const {
+    username,
+    email,
+    subscription_tier,
+    subscription_status,
+    status,
+    subscription_price,
+    subscription_start_date,
+    subscription_end_date,
+  } = userData;
+
+  // Build dynamic update query based on provided fields
+  const updateFields = [];
+  const updateValues = [];
+
+  if (username !== undefined) {
+    updateFields.push('username = ?');
+    updateValues.push(username);
+  }
+
+  if (email !== undefined) {
+    updateFields.push('email = ?');
+    updateValues.push(email);
+  }
+
+  if (subscription_tier !== undefined) {
+    updateFields.push('subscription_tier = ?');
+    updateValues.push(subscription_tier);
+  }
+
+  if (subscription_status !== undefined) {
+    updateFields.push('subscription_status = ?');
+    updateValues.push(subscription_status);
+  }
+
+  if (status !== undefined) {
+    updateFields.push('status = ?');
+    updateValues.push(status);
+  }
+
+  if (subscription_price !== undefined) {
+    updateFields.push('subscription_price = ?');
+    updateValues.push(subscription_price);
+  }
+
+  if (subscription_start_date !== undefined) {
+    updateFields.push('subscription_start_date = ?');
+    updateValues.push(subscription_start_date);
+  }
+
+  if (subscription_end_date !== undefined) {
+    updateFields.push('subscription_end_date = ?');
+    updateValues.push(subscription_end_date);
+  }
+
+  if (updateFields.length === 0) {
+    callback(new Error('No fields to update'));
+    return;
+  }
+
+  // Add userId to the end of values array
+  updateValues.push(userId);
+
+  const query = `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`;
+
+  db.run(query, updateValues, function (err) {
+    if (err) {
+      callback(err);
+      return;
+    }
+
+    if (this.changes === 0) {
+      callback(new Error('User not found or no changes made'));
+      return;
+    }
+
+    callback(null, { userId, changes: this.changes });
+  });
+}
+
 // Login tracking functions
 function recordUserLogin(userId, callback = () => {}) {
   if (!db) {
@@ -1783,6 +1874,7 @@ module.exports = {
   updateUserStatus,
   updateInvitationTimestamp,
   updateUsername,
+  updateUser,
   // Login tracking
   migrateLoginTrackingColumns,
   recordUserLogin,
