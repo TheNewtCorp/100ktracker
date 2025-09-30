@@ -84,9 +84,13 @@ const UserManagementTable: React.FC = () => {
   };
 
   const handleResendInvitation = async (user: User) => {
+    if (!confirm(`Resend invitation to ${user.email}? This will generate a new temporary password.`)) return;
+
     try {
-      await adminApiService.resendInvitation({ email: user.email });
-      alert('Invitation email resent successfully');
+      const result = await adminApiService.resendInvitation({ email: user.email });
+      alert(
+        'Invitation email resent successfully with a new temporary password. The user should check their email for login details.',
+      );
     } catch (err: any) {
       alert(`Failed to resend invitation: ${err.message}`);
     }

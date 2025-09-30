@@ -455,17 +455,34 @@ router.post('/resend-invitation', authenticateGeneralAdmin, async (req, res) => 
       });
     }
 
-    // Send invitation email
+    // Generate a new temporary password for security
+    const crypto = require('crypto');
+    const newTemporaryPassword = crypto.randomBytes(8).toString('hex').toUpperCase();
+
+    // Hash the new password and update it in the database
+    const bcrypt = require('bcrypt');
+    const hashedPassword = await bcrypt.hash(newTemporaryPassword, 10);
+
+    // Update user's password in database
+    await new Promise((resolve, reject) => {
+      const db = require('../db').getDb();
+      db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, user.id], function (err) {
+        if (err) reject(err);
+        else resolve(this);
+      });
+    });
+
+    // Send invitation email with new temporary password
     const emailResult = await attemptEmailSending({
       username: user.username,
       email: user.email,
-      password: '[Password from database]', // Password is hashed in DB, so we indicate this
+      password: newTemporaryPassword,
       temporaryPassword: true,
     });
 
     res.json({
       success: true,
-      message: 'Invitation email resent successfully',
+      message: 'Invitation email resent successfully with new temporary password',
       user: {
         username: user.username,
         email: user.email,
@@ -474,6 +491,10 @@ router.post('/resend-invitation', authenticateGeneralAdmin, async (req, res) => 
         sent: true,
         messageId: emailResult.messageId,
         previewUrl: emailResult.previewUrl,
+      },
+      temporaryPassword: {
+        generated: true,
+        note: 'A new temporary password has been generated and sent to the user',
       },
     });
   } catch (error) {
