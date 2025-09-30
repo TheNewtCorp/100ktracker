@@ -7,27 +7,50 @@ class AdminApiService {
     // Use the same environment variable as the main API service
     // In production, this should be set to https://one00ktracker.onrender.com/api
     this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://one00ktracker.onrender.com/api';
+
+    // Load token from localStorage like the main API service
+    this.token = localStorage.getItem('jwtToken');
   }
 
   setToken(token: string) {
     this.token = token;
+    // Don't store in localStorage here since main apiService handles that
   }
 
   clearToken() {
     this.token = null;
   }
 
-  private async request(endpoint: string, options: RequestInit = {}) {
-    const url = `${this.baseUrl}${endpoint}`;
+  // Sync token from localStorage (useful when token was set by main apiService)
+  private refreshTokenFromStorage() {
+    const storedToken = localStorage.getItem('jwtToken');
+    if (storedToken && storedToken !== this.token) {
+      this.token = storedToken;
+    }
+  }
+
+  private getHeaders(): HeadersInit {
+    // Always check for updated token from localStorage
+    this.refreshTokenFromStorage();
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      ...options.headers,
     };
 
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
+
+    return headers;
+  }
+
+  private async request(endpoint: string, options: RequestInit = {}) {
+    const url = `${this.baseUrl}${endpoint}`;
+
+    const headers = {
+      ...this.getHeaders(),
+      ...options.headers,
+    };
 
     const response = await fetch(url, {
       ...options,
@@ -40,9 +63,7 @@ class AdminApiService {
     }
 
     return response.json();
-  }
-
-  // Dashboard Statistics
+  } // Dashboard Statistics
   async getDashboardStats() {
     return this.request('/admin/dashboard-stats');
   }
