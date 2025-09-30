@@ -460,7 +460,7 @@ router.post('/resend-invitation', authenticateGeneralAdmin, async (req, res) => 
     const newTemporaryPassword = crypto.randomBytes(8).toString('hex').toUpperCase();
 
     // Hash the new password and update it in the database
-    const bcrypt = require('bcrypt');
+    const bcrypt = require('bcryptjs');
     const hashedPassword = await bcrypt.hash(newTemporaryPassword, 10);
 
     // Update user's password in database
@@ -720,7 +720,7 @@ router.post('/users/:id/reset-password', authenticateGeneralAdmin, async (req, r
     }
 
     // Hash the new password
-    const bcrypt = require('bcrypt');
+    const bcrypt = require('bcryptjs');
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // Update user's password in database
