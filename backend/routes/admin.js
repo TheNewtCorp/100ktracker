@@ -694,14 +694,64 @@ router.get('/users/:id', authenticateGeneralAdmin, async (req, res) => {
 router.post('/users/:id/reset-password', authenticateGeneralAdmin, async (req, res) => {
   try {
     const { id } = req.params;
+    const { newPassword } = req.body;
 
-    // Mock response for now
+    // Validate user ID
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        error: 'Invalid user ID',
+        message: 'User ID must be a valid number',
+      });
+    }
+
+    // Validate new password
+    if (!newPassword || typeof newPassword !== 'string') {
+      return res.status(400).json({
+        error: 'Invalid password',
+        message: 'New password is required and must be a string',
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        error: 'Password too short',
+        message: 'Password must be at least 6 characters long',
+      });
+    }
+
+    // Hash the new password
+    const bcrypt = require('bcrypt');
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update user's password in database
+    await new Promise((resolve, reject) => {
+      const db = require('../db').getDb();
+      db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, parseInt(id)], function (err) {
+        if (err) {
+          reject(err);
+        } else if (this.changes === 0) {
+          reject(new Error('User not found'));
+        } else {
+          resolve(this);
+        }
+      });
+    });
+
     res.json({
       success: true,
-      message: 'Password reset endpoint not yet implemented',
+      message: 'Password reset successfully',
+      userId: parseInt(id),
     });
   } catch (error) {
     console.error('❌ Reset password failed:', error.message);
+
+    if (error.message.includes('User not found')) {
+      return res.status(404).json({
+        error: 'User not found',
+        message: 'The specified user does not exist',
+      });
+    }
+
     res.status(500).json({
       error: 'Failed to reset password',
       message: error.message,

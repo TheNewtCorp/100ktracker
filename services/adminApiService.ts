@@ -142,9 +142,11 @@ class AdminApiService {
     });
   }
 
-  async resetUserPassword(userId: number) {
+  async resetUserPassword(userId: number, newPassword?: string) {
+    const body = newPassword ? JSON.stringify({ newPassword }) : undefined;
     return this.request(`/admin/users/${userId}/reset-password`, {
       method: 'POST',
+      body,
     });
   }
 

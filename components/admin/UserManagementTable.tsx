@@ -19,6 +19,7 @@ const UserManagementTable: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
 
   // Filters and search
   const [searchTerm, setSearchTerm] = useState('');
@@ -73,11 +74,18 @@ const UserManagementTable: React.FC = () => {
   };
 
   const handleResetPassword = async (user: User) => {
-    if (!confirm(`Reset password for ${user.email}?`)) return;
+    setSelectedUser(user);
+    setShowResetPasswordModal(true);
+  };
+
+  const handleResetPasswordConfirm = async (newPassword: string) => {
+    if (!selectedUser) return;
 
     try {
-      await adminApiService.resetUserPassword(user.id);
-      alert('Password reset email sent successfully');
+      await adminApiService.resetUserPassword(selectedUser.id, newPassword);
+      setShowResetPasswordModal(false);
+      setSelectedUser(null);
+      alert('Password reset successfully. The user can now login with the new password.');
     } catch (err: any) {
       alert(`Failed to reset password: ${err.message}`);
     }
@@ -407,6 +415,18 @@ const UserManagementTable: React.FC = () => {
           }}
         />
       )}
+
+      {/* Reset Password Modal */}
+      {showResetPasswordModal && selectedUser && (
+        <ResetPasswordModal
+          user={selectedUser}
+          onReset={handleResetPasswordConfirm}
+          onCancel={() => {
+            setShowResetPasswordModal(false);
+            setSelectedUser(null);
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -672,6 +692,202 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, onSave, onCancel })
                 </>
               ) : (
                 'Save Changes'
+              )}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+};
+
+// Reset Password Modal Component
+interface ResetPasswordModalProps {
+  user: User;
+  onReset: (newPassword: string) => Promise<void>;
+  onCancel: () => void;
+}
+
+const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ user, onReset, onCancel }) => {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewPassword(password);
+    setConfirmPassword(password);
+  };
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!newPassword.trim()) {
+      newErrors.newPassword = 'Password is required';
+    } else if (newPassword.length < 6) {
+      newErrors.newPassword = 'Password must be at least 6 characters';
+    }
+
+    if (!confirmPassword.trim()) {
+      newErrors.confirmPassword = 'Please confirm the password';
+    } else if (newPassword !== confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await onReset(newPassword);
+    } catch (error) {
+      console.error('Error resetting password:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    if (field === 'newPassword') {
+      setNewPassword(value);
+    } else if (field === 'confirmPassword') {
+      setConfirmPassword(value);
+    }
+
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  return (
+    <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className='bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4'
+      >
+        <div className='flex items-center justify-between mb-6'>
+          <h3 className='text-xl font-bold text-white'>Reset Password</h3>
+          <button onClick={onCancel} className='text-gray-400 hover:text-white transition-colors'>
+            ✕
+          </button>
+        </div>
+
+        <div className='mb-4'>
+          <p className='text-gray-300 text-sm'>
+            Resetting password for: <span className='font-medium text-white'>{user.email}</span>
+          </p>
+          <p className='text-gray-400 text-xs mt-1'>
+            The user will be able to login immediately with the new password.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className='space-y-4'>
+          <div>
+            <div className='flex items-center justify-between mb-2'>
+              <label className='block text-sm font-medium text-gray-300'>New Password *</label>
+              <button
+                type='button'
+                onClick={generateRandomPassword}
+                className='text-xs text-blue-400 hover:text-blue-300 transition-colors'
+              >
+                Generate Random
+              </button>
+            </div>
+            <div className='relative'>
+              <input
+                type={showPasswords ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => handleInputChange('newPassword', e.target.value)}
+                className={`w-full px-3 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 ${
+                  errors.newPassword ? 'border-red-500' : 'border-gray-600'
+                }`}
+                placeholder='Enter new password'
+              />
+              <button
+                type='button'
+                onClick={() => setShowPasswords(!showPasswords)}
+                className='absolute right-3 top-2.5 text-gray-400 hover:text-white'
+              >
+                {showPasswords ? '👁️' : '👁️‍🗨️'}
+              </button>
+            </div>
+            {errors.newPassword && <p className='text-red-400 text-sm mt-1'>{errors.newPassword}</p>}
+          </div>
+
+          <div>
+            <label className='block text-sm font-medium text-gray-300 mb-2'>Confirm Password *</label>
+            <input
+              type={showPasswords ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+              className={`w-full px-3 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                errors.confirmPassword ? 'border-red-500' : 'border-gray-600'
+              }`}
+              placeholder='Confirm new password'
+            />
+            {errors.confirmPassword && <p className='text-red-400 text-sm mt-1'>{errors.confirmPassword}</p>}
+          </div>
+
+          {newPassword && (
+            <div className='bg-gray-700 p-3 rounded-lg border border-gray-600'>
+              <p className='text-sm text-gray-300 mb-1'>Password strength:</p>
+              <div className='flex space-x-1'>
+                <div className={`h-2 w-1/4 rounded ${newPassword.length >= 6 ? 'bg-red-500' : 'bg-gray-600'}`}></div>
+                <div className={`h-2 w-1/4 rounded ${newPassword.length >= 8 ? 'bg-yellow-500' : 'bg-gray-600'}`}></div>
+                <div
+                  className={`h-2 w-1/4 rounded ${newPassword.length >= 10 && /[A-Z]/.test(newPassword) ? 'bg-blue-500' : 'bg-gray-600'}`}
+                ></div>
+                <div
+                  className={`h-2 w-1/4 rounded ${newPassword.length >= 12 && /[A-Z]/.test(newPassword) && /[0-9]/.test(newPassword) ? 'bg-green-500' : 'bg-gray-600'}`}
+                ></div>
+              </div>
+              <p className='text-xs text-gray-400 mt-1'>
+                {newPassword.length >= 12 && /[A-Z]/.test(newPassword) && /[0-9]/.test(newPassword)
+                  ? 'Strong password'
+                  : newPassword.length >= 8
+                    ? 'Good password'
+                    : 'Weak password'}
+              </p>
+            </div>
+          )}
+
+          <div className='flex justify-end space-x-3 pt-4 border-t border-gray-700'>
+            <button
+              type='button'
+              onClick={onCancel}
+              className='px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors'
+            >
+              Cancel
+            </button>
+            <button
+              type='submit'
+              disabled={isLoading || !newPassword || !confirmPassword}
+              className='px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg transition-colors flex items-center'
+            >
+              {isLoading ? (
+                <>
+                  <div className='animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2'></div>
+                  Resetting...
+                </>
+              ) : (
+                '🔑 Reset Password'
               )}
             </button>
           </div>
