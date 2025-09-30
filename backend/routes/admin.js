@@ -466,7 +466,7 @@ router.post('/resend-invitation', authenticateGeneralAdmin, async (req, res) => 
     // Update user's password in database
     await new Promise((resolve, reject) => {
       const db = require('../db').getDb();
-      db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, user.id], function (err) {
+      db.run('UPDATE users SET hashed_password = ? WHERE id = ?', [hashedPassword, user.id], function (err) {
         if (err) reject(err);
         else resolve(this);
       });
@@ -726,7 +726,7 @@ router.post('/users/:id/reset-password', authenticateGeneralAdmin, async (req, r
     // Update user's password in database
     await new Promise((resolve, reject) => {
       const db = require('../db').getDb();
-      db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, parseInt(id)], function (err) {
+      db.run('UPDATE users SET hashed_password = ? WHERE id = ?', [hashedPassword, parseInt(id)], function (err) {
         if (err) {
           reject(err);
         } else if (this.changes === 0) {
