@@ -12,6 +12,7 @@ const {
   getUserByUsername,
   findUser,
   getAllUsers,
+  getAllPromoSignups,
 } = require('../db');
 
 // Define subscription tier configurations
@@ -485,19 +486,74 @@ router.post('/resend-invitation', authenticateGeneralAdmin, async (req, res) => 
 // Dashboard statistics endpoint
 router.get('/dashboard-stats', authenticateGeneralAdmin, async (req, res) => {
   try {
-    // These would need to be implemented in db.js
-    const stats = {
-      totalUsers: 0,
-      totalPromoSignups: 0,
-      recentProvisioningAttempts: 0,
-      activeSubscriptions: {
-        free: 0,
-        platinum: 0,
-        operandi: 0,
-      },
+    console.log('📊 Fetching dashboard statistics...');
+    
+    // Get all users to calculate stats
+    const users = await getAllUsers();
+
+    // Get all promo signups
+    const promoSignups = await new Promise((resolve, reject) => {
+      getAllPromoSignups((err, signups) => {
+        if (err) {
+          console.warn('Could not fetch promo signups:', err.message);
+          resolve([]); // Don't fail if promo signups aren't available
+        } else {
+          resolve(signups || []);
+        }
+      });
+    });
+
+    // Get recent provisioning attempts (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const recentProvisioningAttempts = await new Promise((resolve, reject) => {
+      const db = require('../db').db;
+      if (!db) {
+        resolve(0);
+        return;
+      }
+      
+      db.all(
+        'SELECT COUNT(*) as count FROM provisioning_audit WHERE created_at >= ?',
+        [thirtyDaysAgo.toISOString()],
+        (err, rows) => {
+          if (err) {
+            console.warn('Could not fetch recent provisioning attempts:', err.message);
+            resolve(0);
+          } else {
+            resolve(rows?.[0]?.count || 0);
+          }
+        }
+      );
+    });
+
+    // Calculate subscription breakdowns
+    const subscriptionStats = {
+      free: 0,
+      platinum: 0,
+      operandi: 0,
     };
 
-    // For now, return mock data
+    if (Array.isArray(users)) {
+      users.forEach(user => {
+        const tier = user.subscription_tier || 'free';
+        if (subscriptionStats.hasOwnProperty(tier)) {
+          subscriptionStats[tier]++;
+        } else {
+          subscriptionStats.free++; // Default to free for unknown tiers
+        }
+      });
+    }
+
+    const stats = {
+      totalUsers: Array.isArray(users) ? users.length : 0,
+      totalPromoSignups: Array.isArray(promoSignups) ? promoSignups.length : 0,
+      recentProvisioningAttempts: recentProvisioningAttempts,
+      activeSubscriptions: subscriptionStats,
+    };
+
+    console.log('✅ Dashboard stats calculated:', stats);
     res.json(stats);
   } catch (error) {
     console.error('❌ Dashboard stats failed:', error.message);
