@@ -22,6 +22,7 @@ const accountRoutes = require('./routes/account');
 const webhookRoutes = require('./routes/webhooks'); // Step 5: Webhook integration
 const promoRoutes = require('./routes/promo'); // Operandi Challenge promo routes
 const adminRoutes = require('./routes/admin'); // General admin routes for account provisioning
+const paymentRoutes = require('./routes/payments'); // Stripe payment and checkout routes
 
 const app = express();
 // Render assigns PORT automatically for web services, fallback to 3001 for local dev
@@ -149,6 +150,7 @@ app.use('/api/invoices', invoiceRoutes); // Safe version enabled
 app.use('/api/account', accountRoutes);
 app.use('/api/promo', promoRoutes); // Operandi Challenge promo routes
 app.use('/api/admin', adminRoutes); // General admin routes for account provisioning
+app.use('/api/payments', paymentRoutes); // Stripe payment and checkout routes
 
 app.get('/', (req, res) => {
   res.send('100KTracker backend running');

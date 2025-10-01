@@ -1,7 +1,9 @@
 // Centralized API service for all backend communication
 import type { OperandiSignupData, PromoSignup, PromoSignupResponse, PromoSignupsListResponse } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://one00ktracker.onrender.com/api';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? 'http://localhost:3001/api' : 'https://one00ktracker.onrender.com/api');
 
 class ApiService {
   private token: string | null;
@@ -47,13 +49,26 @@ class ApiService {
       const response = await fetch(url, config);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const contentType = response.headers.get('content-type');
+        let errorData;
+
+        if (contentType && contentType.includes('application/json')) {
+          errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
+        } else {
+          const text = await response.text();
+          errorData = { error: `HTTP ${response.status}: ${text || 'Unknown error'}` };
+        }
+
+        console.error(`API Error [${response.status}]:`, errorData);
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
       return await response.json();
     } catch (error) {
       console.error(`API request failed: ${endpoint}`, error);
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network error: Unable to connect to server. Please check if the backend is running.');
+      }
       throw error;
     }
   }
@@ -324,6 +339,35 @@ class ApiService {
     return await this.request(`/promo/admin/signups/${id}/create-account`, {
       method: 'POST',
       body: JSON.stringify({ temporaryPassword }),
+    });
+  }
+
+  // Payment API methods
+  async createCheckoutSession(data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    promoCode: string;
+  }): Promise<{ sessionId: string; url: string }> {
+    return await this.request('/payments/create-checkout-session', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async handlePaymentSuccess(sessionId: string): Promise<{
+    success: boolean;
+    message: string;
+    customer: {
+      email: string;
+      firstName: string;
+      lastName: string;
+      subscriptionTier: string;
+    };
+  }> {
+    return await this.request('/payments/success', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId }),
     });
   }
 }

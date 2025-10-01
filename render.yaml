@@ -14,6 +14,10 @@ services:
         value: /app/db/users.sqlite
       - key: APP_URL
         value: https://100ktracker.netlify.app
+      - key: STRIPE_SECRET_KEY
+        value: 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
+      - key: STRIPE_PUBLISHABLE_KEY
+        value: pk_live_51SDDT1AXjei6j62h4rdul8gsqudzfYw0tlN5PPuZKLeCoLnv4IeDbeZUJOhCTKYIPrxv4fbqUuLPhJqe7hMKOa3500zgXMr4ls
     healthCheckPath: /health
     healthCheckDelay: 30
     healthCheckPeriod: 30
