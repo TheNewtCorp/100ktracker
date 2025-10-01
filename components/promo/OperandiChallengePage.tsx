@@ -542,10 +542,6 @@ const OperandiChallengePage: React.FC = () => {
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
           <div className='text-center text-gray-600'>
             <p className='mb-2'>The Operandi Challenge is an exclusive partnership between 100ktracker and Operandi.</p>
-            <p className='text-sm'>
-              Applications are reviewed manually. You will be contacted within 1-2 business days regarding your
-              application status.
-            </p>
           </div>
         </div>
       </footer>
