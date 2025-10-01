@@ -10,6 +10,7 @@ const OperandiChallengePage: React.FC = () => {
     email: '',
     phone: '',
     businessName: '',
+    selectedPlan: 'monthly', // new field for plan selection
     promoCode: '',
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -54,13 +55,30 @@ const OperandiChallengePage: React.FC = () => {
       if (result.success) {
         setIsSubmitted(true);
         // Optionally clear URL parameters
-        window.history.replaceState({}, document.title, '/operandi-challenge');
+        window.history.replaceState({}, document.title, '/pricing');
       }
     } catch (error: any) {
       console.error('Payment success handling failed:', error);
       setError('Payment completed but account setup failed. Please contact support.');
     }
   };
+
+  // Calculate pricing based on selected plan and promo code
+  const calculatePricing = () => {
+    const basePrice = formData.selectedPlan === 'monthly' ? 98 : 980;
+    const discountAmount =
+      isPromoValid && formData.promoCode.trim() ? (formData.selectedPlan === 'monthly' ? 10 : 130) : 0;
+    const finalPrice = basePrice - discountAmount;
+
+    return {
+      basePrice,
+      discountAmount,
+      finalPrice,
+      period: formData.selectedPlan === 'monthly' ? 'month' : 'year',
+    };
+  };
+
+  const pricing = calculatePricing();
 
   // The promo code - you can give this to Operandi business
   const VALID_PROMO_CODE = 'OPERANDI2024';
@@ -110,13 +128,8 @@ const OperandiChallengePage: React.FC = () => {
     e.preventDefault();
 
     // Validate required fields
-    if (
-      !formData.fullName.trim() ||
-      !formData.email.trim() ||
-      !formData.businessName.trim() ||
-      !formData.promoCode.trim()
-    ) {
-      setError('Please fill in all required fields including the promo code');
+    if (!formData.fullName.trim() || !formData.email.trim() || !formData.businessName.trim()) {
+      setError('Please fill in all required fields');
       return;
     }
 
@@ -127,9 +140,9 @@ const OperandiChallengePage: React.FC = () => {
       return;
     }
 
-    // Validate promo code (now required)
-    if (!isPromoValid) {
-      setError('Please enter a valid promo code');
+    // Validate promo code if provided
+    if (formData.promoCode.trim() && !isPromoValid) {
+      setError('Please enter a valid promo code or leave it blank');
       return;
     }
 
@@ -153,6 +166,7 @@ const OperandiChallengePage: React.FC = () => {
         email: formData.email,
         firstName,
         lastName,
+        selectedPlan: formData.selectedPlan,
         promoCode: formData.promoCode,
       };
 
@@ -212,13 +226,9 @@ const OperandiChallengePage: React.FC = () => {
                 <h1 className='text-2xl font-bold text-gray-900'>100ktracker</h1>
               </div>
               <div className='hidden md:block'>
-                <span className='text-gray-500'>×</span>
-              </div>
-              <div className='hidden md:block'>
-                <h2 className='text-xl font-semibold text-blue-600'>Operandi</h2>
+                <h2 className='text-xl font-semibold text-blue-600'>Sub Options</h2>
               </div>
             </div>
-            <div className='text-sm text-gray-500'>Exclusive Partnership</div>
           </div>
         </div>
       </header>
@@ -240,12 +250,12 @@ const OperandiChallengePage: React.FC = () => {
               <h2 className='text-3xl font-bold text-gray-900 mb-8'>Choose Your Plan</h2>
 
               <div className='grid md:grid-cols-2 gap-8 mb-12'>
-                {/* Standard Plan */}
+                {/* Monthly Plan */}
                 <div className='bg-white border-2 border-gray-200 rounded-xl p-8 shadow-lg'>
                   <div className='text-center mb-6'>
-                    <h3 className='text-2xl font-bold text-gray-900 mb-2'>Platinum Tier</h3>
+                    <h3 className='text-2xl font-bold text-gray-900 mb-2'>Monthly Plan</h3>
                     <div className='text-5xl font-bold text-gray-900 mb-2'>
-                      $99
+                      $98
                       <span className='text-lg font-normal text-gray-600'>/month</span>
                     </div>
                     <p className='text-gray-600'>Full access to all premium features</p>
@@ -305,25 +315,25 @@ const OperandiChallengePage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Operandi Discounted Plan */}
+                {/* Yearly Plan */}
                 <div className='bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-500 rounded-xl p-8 shadow-lg relative'>
                   <div className='absolute -top-4 left-1/2 transform -translate-x-1/2'>
                     <span className='bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-semibold'>
-                      🎯 Operandi Exclusive
+                      💰 Best Value
                     </span>
                   </div>
 
                   <div className='text-center mb-6 mt-4'>
-                    <h3 className='text-2xl font-bold text-gray-900 mb-2'>Platinum + Operandi Plan</h3>
+                    <h3 className='text-2xl font-bold text-gray-900 mb-2'>Yearly Plan</h3>
                     <div className='mb-3'>
-                      <span className='text-2xl text-gray-500 line-through'>$99</span>
+                      <span className='text-2xl text-gray-500 line-through'>$1,176</span>
                       <div className='text-5xl font-bold text-blue-600 mb-2'>
-                        $89
-                        <span className='text-lg font-normal text-gray-600'>/month</span>
+                        $980
+                        <span className='text-lg font-normal text-gray-600'>/year</span>
                       </div>
                     </div>
                     <div className='bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium inline-block'>
-                      Save $10/month with promo code
+                      Save $196/year (2 months free)
                     </div>
                   </div>
 
@@ -336,7 +346,7 @@ const OperandiChallengePage: React.FC = () => {
                           clipRule='evenodd'
                         />
                       </svg>
-                      <span className='text-gray-700 font-medium'>Everything in Standard Plan</span>
+                      <span className='text-gray-700 font-medium'>Everything in Monthly Plan</span>
                     </div>
                     <div className='flex items-center'>
                       <svg className='w-5 h-5 text-blue-500 mr-3' fill='currentColor' viewBox='0 0 20 20'>
@@ -346,7 +356,7 @@ const OperandiChallengePage: React.FC = () => {
                           clipRule='evenodd'
                         />
                       </svg>
-                      <span className='text-blue-700 font-medium'>$10 monthly discount</span>
+                      <span className='text-blue-700 font-medium'>2 months free (16% savings)</span>
                     </div>
                     <div className='flex items-center'>
                       <svg className='w-5 h-5 text-blue-500 mr-3' fill='currentColor' viewBox='0 0 20 20'>
@@ -356,7 +366,7 @@ const OperandiChallengePage: React.FC = () => {
                           clipRule='evenodd'
                         />
                       </svg>
-                      <span className='text-blue-700 font-medium'>Operandi partner benefits</span>
+                      <span className='text-blue-700 font-medium'>Annual billing convenience</span>
                     </div>
                   </div>
                 </div>
@@ -437,11 +447,87 @@ const OperandiChallengePage: React.FC = () => {
                 />
               </div>
 
-              {/* Promo Code Input in Form */}
+              {/* Plan Selection */}
               <div>
                 <label className='block text-sm font-medium text-gray-700 mb-2'>
-                  Operandi Promo Code <span className='text-red-500'>*</span>
+                  Subscription Plan <span className='text-red-500'>*</span>
                 </label>
+                <div className='grid grid-cols-2 gap-4'>
+                  <label
+                    className={`relative border-2 rounded-lg p-4 cursor-pointer transition-colors ${
+                      formData.selectedPlan === 'monthly'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <input
+                      type='radio'
+                      name='selectedPlan'
+                      value='monthly'
+                      checked={formData.selectedPlan === 'monthly'}
+                      onChange={(e) => handleInputChange('selectedPlan', e.target.value)}
+                      className='sr-only'
+                    />
+                    <div className='text-center'>
+                      <div className='text-lg font-semibold text-gray-900'>Monthly</div>
+                      <div className='text-2xl font-bold text-blue-600'>
+                        $98<span className='text-sm font-normal'>/month</span>
+                      </div>
+                      <div className='text-sm text-gray-500'>Billed monthly</div>
+                    </div>
+                    {formData.selectedPlan === 'monthly' && (
+                      <div className='absolute top-2 right-2'>
+                        <svg className='w-5 h-5 text-blue-500' fill='currentColor' viewBox='0 0 20 20'>
+                          <path
+                            fillRule='evenodd'
+                            d='M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z'
+                            clipRule='evenodd'
+                          />
+                        </svg>
+                      </div>
+                    )}
+                  </label>
+
+                  <label
+                    className={`relative border-2 rounded-lg p-4 cursor-pointer transition-colors ${
+                      formData.selectedPlan === 'yearly'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <input
+                      type='radio'
+                      name='selectedPlan'
+                      value='yearly'
+                      checked={formData.selectedPlan === 'yearly'}
+                      onChange={(e) => handleInputChange('selectedPlan', e.target.value)}
+                      className='sr-only'
+                    />
+                    <div className='text-center'>
+                      <div className='text-lg font-semibold text-gray-900'>Yearly</div>
+                      <div className='text-2xl font-bold text-blue-600'>
+                        $980<span className='text-sm font-normal'>/year</span>
+                      </div>
+                      <div className='text-sm text-green-600 font-medium'>Save $196/year</div>
+                    </div>
+                    {formData.selectedPlan === 'yearly' && (
+                      <div className='absolute top-2 right-2'>
+                        <svg className='w-5 h-5 text-blue-500' fill='currentColor' viewBox='0 0 20 20'>
+                          <path
+                            fillRule='evenodd'
+                            d='M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z'
+                            clipRule='evenodd'
+                          />
+                        </svg>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              </div>
+
+              {/* Promo Code Input in Form */}
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-2'>Promo Code (Optional)</label>
                 <input
                   type='text'
                   value={formData.promoCode}
@@ -466,16 +552,20 @@ const OperandiChallengePage: React.FC = () => {
                 <h4 className='font-medium text-gray-900 mb-3'>Subscription Summary</h4>
                 <div className='space-y-2 text-sm'>
                   <div className='flex justify-between'>
-                    <span>Monthly Subscription</span>
-                    <span>$99.00</span>
+                    <span>{formData.selectedPlan === 'monthly' ? 'Monthly' : 'Yearly'} Subscription</span>
+                    <span>${pricing.basePrice.toFixed(2)}</span>
                   </div>
-                  <div className='flex justify-between text-green-600'>
-                    <span>Operandi Discount</span>
-                    <span>-$10.00</span>
-                  </div>
+                  {pricing.discountAmount > 0 && (
+                    <div className='flex justify-between text-green-600'>
+                      <span>Promo Code Discount</span>
+                      <span>-${pricing.discountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className='border-t pt-2 flex justify-between font-medium text-lg'>
-                    <span>Monthly Total</span>
-                    <span className='text-green-600'>$89.00</span>
+                    <span>{formData.selectedPlan === 'monthly' ? 'Monthly' : 'Yearly'} Total</span>
+                    <span className={pricing.discountAmount > 0 ? 'text-green-600' : 'text-gray-900'}>
+                      ${pricing.finalPrice.toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -495,7 +585,7 @@ const OperandiChallengePage: React.FC = () => {
                     Processing...
                   </div>
                 ) : (
-                  'Subscribe Now - $89/month'
+                  `Subscribe Now - $${pricing.finalPrice}/${pricing.period}`
                 )}
               </button>
 
@@ -538,10 +628,26 @@ const OperandiChallengePage: React.FC = () => {
       </section>
 
       {/* Footer */}
+      {/* Footer */}
       <footer className='bg-white border-t py-8'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
           <div className='text-center text-gray-600'>
-            <p className='mb-2'>The Operandi Challenge is an exclusive partnership between 100ktracker and Operandi.</p>
+            <p className='mb-2'>
+              If you're participating in the{' '}
+              <a
+                href='https://operandigoods.com/pages/100k-challenge'
+                target='_blank'
+                rel='noopener noreferrer'
+                className='text-blue-600 hover:text-blue-800 underline'
+              >
+                Operandi 100K challenge
+              </a>
+              , please enter your coupon code for the pre-negotiated price.
+            </p>
+            <p className='text-sm'>
+              Any watch trader who achieves 100K net profits within 12 months will also receive up to 6 months of their
+              100Ktracker.com dues as credit to their 100Ktracker account.
+            </p>
           </div>
         </div>
       </footer>

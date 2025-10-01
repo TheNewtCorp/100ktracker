@@ -14,7 +14,8 @@ router.post(
     body('email').isEmail().withMessage('Valid email is required'),
     body('firstName').notEmpty().withMessage('First name is required'),
     body('lastName').notEmpty().withMessage('Last name is required'),
-    body('promoCode').notEmpty().withMessage('Promo code is required'),
+    body('selectedPlan').isIn(['monthly', 'yearly']).withMessage('Valid plan selection is required'),
+    body('promoCode').optional().isString().withMessage('Promo code must be a string'),
   ],
   async (req, res) => {
     try {
@@ -27,19 +28,21 @@ router.post(
         });
       }
 
-      const { email, firstName, lastName, promoCode } = req.body;
+      const { email, firstName, lastName, selectedPlan, promoCode } = req.body;
 
-      // Validate promo code
-      if (promoCode !== 'OPERANDI2024') {
+      // Validate promo code if provided
+      const hasValidPromo = promoCode && promoCode.trim().toUpperCase() === 'OPERANDI2024';
+
+      if (promoCode && promoCode.trim() && !hasValidPromo) {
         return res.status(400).json({
           error: 'Invalid promo code',
         });
       }
 
-      // Calculate pricing
-      const basePrice = 99; // $99/month base price
-      const discount = 10; // $10 discount with promo code
-      const finalPrice = basePrice - discount; // $89
+      // Calculate pricing based on plan and promo code
+      const basePrice = selectedPlan === 'monthly' ? 98 : 980;
+      const discount = hasValidPromo ? (selectedPlan === 'monthly' ? 10 : 130) : 0;
+      const finalPrice = basePrice - discount;
 
       // Create checkout session
       const session = await stripe.checkout.sessions.create({
@@ -51,12 +54,12 @@ router.post(
             price_data: {
               currency: 'usd',
               product_data: {
-                name: '100K Tracker - Operandi Challenge',
-                description: 'Monthly subscription with Operandi Challenge access (includes $10 Operandi discount)',
+                name: `100K Tracker - ${selectedPlan === 'monthly' ? 'Monthly' : 'Yearly'} Plan`,
+                description: `${selectedPlan === 'monthly' ? 'Monthly' : 'Yearly'} subscription${hasValidPromo ? ' with Operandi discount' : ''}`,
               },
-              unit_amount: finalPrice * 100, // Convert to cents ($89)
+              unit_amount: finalPrice * 100, // Convert to cents
               recurring: {
-                interval: 'month',
+                interval: selectedPlan === 'monthly' ? 'month' : 'year',
               },
             },
             quantity: 1,
@@ -65,13 +68,14 @@ router.post(
         metadata: {
           firstName,
           lastName,
-          promoCode,
-          subscriptionTier: 'operandi',
-          originalPrice: basePrice,
+          selectedPlan,
+          promoCode: promoCode || '',
+          basePrice,
           discountAmount: discount,
+          hasValidPromo,
         },
-        success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/operandi-challenge?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/operandi-challenge?payment=cancelled`,
+        success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/pricing?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/pricing?payment=cancelled`,
       });
 
       res.json({

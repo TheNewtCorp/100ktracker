@@ -29,15 +29,15 @@ const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Check if this is the Operandi Challenge page
-  const isOperandiChallengePage = currentPath === '/operandi-challenge';
+  // Check if this is the Pricing page
+  const isPricingPage = currentPath === '/pricing';
   const isPromoAdminPage = currentPath === '/admin/promo-signups';
   const isGeneralAdminPage = currentPath === '/admin/general';
 
   // On mount, check for token in localStorage
   React.useEffect(() => {
-    // Skip auth check for Operandi Challenge page only
-    if (isOperandiChallengePage) return;
+    // Skip auth check for Pricing page only
+    if (isPricingPage) return;
 
     const storedToken = localStorage.getItem('jwtToken');
     if (storedToken) {
@@ -45,7 +45,7 @@ const App: React.FC = () => {
       setIsLoggedIn(true);
       fetchUserInfo();
     }
-  }, [isOperandiChallengePage]);
+  }, [isPricingPage]);
 
   const handleLogin = useCallback(async (user: string, pass: string) => {
     setIsLoggingIn(true);
@@ -102,7 +102,7 @@ const App: React.FC = () => {
   return (
     <div className='antialiased text-platinum-silver bg-obsidian-black min-h-screen'>
       {/* Handle special pages */}
-      {isOperandiChallengePage ? (
+      {isPricingPage ? (
         <OperandiChallengePage />
       ) : isPromoAdminPage ? (
         // Admin page requires authentication with specific promo admin account
