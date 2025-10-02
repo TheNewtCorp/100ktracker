@@ -539,7 +539,7 @@ const OperandiChallengePage: React.FC = () => {
                         ? 'border-red-300 bg-red-50 text-red-800 focus:ring-red-500'
                         : 'border-gray-300 text-gray-900 focus:ring-blue-500'
                   }`}
-                  placeholder='Enter your Operandi promo code'
+                  placeholder='Enter your promo code'
                   required
                 />
                 {isPromoValid === true && (
