@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Edit2, Users, Trash2, Square, CheckSquare, Trash } from 'lucide-react';
 import { Watch } from '../../../types';
+import SetBadge from './preview/SetBadge';
+import NotesPreview from './preview/NotesPreview';
 
 interface WatchListProps {
   watches: (Watch & { totalIn?: number; netProfit?: number; profitPercentage?: number; holdTime?: string })[];
@@ -70,6 +72,8 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
     'Brand',
     'Model',
     'Ref #',
+    'Set',
+    'Notes',
     'Purchase Price',
     'Total In',
     'Date Sold',
@@ -177,6 +181,12 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
                 <td className='px-6 py-4 font-semibold text-platinum-silver whitespace-nowrap'>{watch.brand}</td>
                 <td className='px-6 py-4 whitespace-nowrap'>{watch.model}</td>
                 <td className='px-6 py-4 whitespace-nowrap'>{watch.referenceNumber}</td>
+                <td className='px-6 py-4'>
+                  <SetBadge watchSet={watch.watchSet} />
+                </td>
+                <td className='px-6 py-4 max-w-48'>
+                  <NotesPreview notes={watch.notes} />
+                </td>
                 <td className='px-6 py-4 whitespace-nowrap'>{formatCurrency(watch.purchasePrice)}</td>
                 <td className='px-6 py-4 font-medium text-champagne-gold whitespace-nowrap'>
                   {formatCurrency(watch.totalIn)}

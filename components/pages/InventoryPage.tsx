@@ -8,7 +8,13 @@ import AssociationPopover from './inventory/AssociationPopover';
 import ConfirmDeleteModal from './inventory/ConfirmDeleteModal';
 import BulkDeleteModal from './inventory/BulkDeleteModal';
 import ImportModal from './inventory/ImportModal';
+import SearchBar from './inventory/search/SearchBar';
+import SortDropdown from './inventory/sort/SortDropdown';
+import FilterBar from './inventory/filters/FilterBar';
 import apiService from '../../services/apiService';
+import { useInventorySearch } from '../../hooks/useInventorySearch';
+import { useInventorySort } from '../../hooks/useInventorySort';
+import { useInventoryFilters } from '../../hooks/useInventoryFilters';
 
 interface InventoryPageProps {
   onInventoryUpdate?: () => void; // Callback to notify when inventory changes
@@ -133,6 +139,31 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onInventoryUpdate }) => {
       return { ...watch, totalIn, netProfit, profitPercentage, holdTime };
     });
   }, [watches]);
+
+  // Initialize search, sort, and filter hooks
+  const {
+    searchText,
+    setSearchText,
+    searchResults,
+    isSearching,
+    resultsCount: searchResultsCount,
+    clearSearch,
+  } = useInventorySearch(processedWatches);
+
+  const { sortOption, setSortOption, sortedWatches, clearSort } = useInventorySort(searchResults);
+
+  const {
+    filterState,
+    updateFilter,
+    filteredWatches,
+    filterOptions,
+    activeFiltersCount,
+    clearAllFilters,
+    toggleFilterExpansion,
+  } = useInventoryFilters(sortedWatches);
+
+  // Final processed watches after all transformations
+  const finalWatches = filteredWatches;
 
   const handleAddNew = () => {
     setEditingWatch(null);
@@ -410,35 +441,73 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onInventoryUpdate }) => {
     <div>
       <p className='text-platinum-silver/80 mb-6'>Track your watch inventory from acquisition to sale.</p>
 
-      <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4'>
-        <h2 className='text-2xl font-semibold text-platinum-silver'>Your Inventory</h2>
-        <div className='flex items-center gap-3'>
-          <button
-            onClick={handleExportCSV}
-            className='flex items-center gap-2 bg-charcoal-slate border border-champagne-gold/50 text-champagne-gold font-bold py-2 px-4 rounded-lg hover:bg-champagne-gold/10 transition-all duration-300'
-          >
-            <Download size={20} />
-            Export to CSV
-          </button>
-          <button
-            onClick={() => setIsImportModalOpen(true)}
-            className='flex items-center gap-2 bg-charcoal-slate border border-champagne-gold/50 text-champagne-gold font-bold py-2 px-4 rounded-lg hover:bg-champagne-gold/10 transition-all duration-300'
-          >
-            <Upload size={20} />
-            Import from CSV
-          </button>
-          <button
-            onClick={handleAddNew}
-            className='flex items-center gap-2 bg-champagne-gold text-obsidian-black font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all duration-300'
-          >
-            <Plus size={20} />
-            Add New Watch
-          </button>
+      {/* Search and Sort Header */}
+      <div className='mb-6 space-y-4'>
+        {/* Top Row: Title and Action Buttons */}
+        <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4'>
+          <h2 className='text-2xl font-semibold text-platinum-silver'>Your Inventory</h2>
+          <div className='flex items-center gap-3'>
+            <button
+              onClick={handleExportCSV}
+              className='flex items-center gap-2 bg-charcoal-slate border border-champagne-gold/50 text-champagne-gold font-bold py-2 px-4 rounded-lg hover:bg-champagne-gold/10 transition-all duration-300'
+            >
+              <Download size={20} />
+              Export to CSV
+            </button>
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className='flex items-center gap-2 bg-charcoal-slate border border-champagne-gold/50 text-champagne-gold font-bold py-2 px-4 rounded-lg hover:bg-champagne-gold/10 transition-all duration-300'
+            >
+              <Upload size={20} />
+              Import from CSV
+            </button>
+            <button
+              onClick={handleAddNew}
+              className='flex items-center gap-2 bg-champagne-gold text-obsidian-black font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all duration-300'
+            >
+              <Plus size={20} />
+              Add New Watch
+            </button>
+          </div>
         </div>
+
+        {/* Search and Sort Row */}
+        <div className='flex flex-col lg:flex-row gap-4 items-start lg:items-end'>
+          <div className='flex-1 max-w-md'>
+            <SearchBar
+              searchText={searchText}
+              onSearchChange={setSearchText}
+              onClearSearch={clearSearch}
+              isSearching={isSearching}
+              resultsCount={searchResultsCount}
+              totalCount={processedWatches.length}
+              placeholder='Search brand, model, reference, notes...'
+            />
+          </div>
+
+          <div className='flex items-center gap-4'>
+            <SortDropdown sortOption={sortOption} onSortChange={setSortOption} onClearSort={clearSort} />
+
+            <div className='text-sm text-platinum-silver/70'>
+              Showing <span className='text-champagne-gold font-medium'>{finalWatches.length}</span> of{' '}
+              <span className='text-platinum-silver'>{processedWatches.length}</span> watches
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Bar */}
+        <FilterBar
+          filterState={filterState}
+          filterOptions={filterOptions}
+          onUpdateFilter={updateFilter}
+          onClearAllFilters={clearAllFilters}
+          onToggleExpansion={toggleFilterExpansion}
+          activeFiltersCount={activeFiltersCount}
+        />
       </div>
 
       <WatchList
-        watches={processedWatches}
+        watches={finalWatches}
         onEdit={handleEdit}
         onShowAssociations={setViewingWatchAssociations}
         onDelete={handleDelete}
