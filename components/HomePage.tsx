@@ -9,11 +9,18 @@ import {
   Watch as WatchIcon,
   CreditCard,
   Bell,
+  DollarSign,
+  Clock,
+  Hash,
+  TrendingUp,
 } from 'lucide-react';
 import AppIcon from './AppIcon';
 import FullScreenApp from './FullScreenApp';
+import StatCard from './shared/StatCard';
 import { Tool, AppTool, Lead, Alert, LeadStatus } from '../types';
 import apiService from '../services/apiService';
+import { useMetrics } from '../hooks/useMetrics';
+import { formatCurrency } from '../utils/metricsHelpers';
 
 import MetricsPage from './pages/MetricsPage';
 import LeadsPage from './pages/LeadsPage';
@@ -61,6 +68,9 @@ const HomePage: React.FC = () => {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [inventoryUpdateTrigger, setInventoryUpdateTrigger] = useState(0); // Trigger for metrics refresh
+
+  // Use the metrics hook
+  const { metrics, isLoading: metricsLoading, error: metricsError } = useMetrics(inventoryUpdateTrigger);
 
   const processLeadsForAlerts = useCallback((leadsData: Lead[]) => {
     console.log('HomePage: Processing leads for alerts...', leadsData);
@@ -188,7 +198,7 @@ const HomePage: React.FC = () => {
           <h1 className='text-5xl font-bold text-champagne-gold tracking-wider'>100KTracker</h1>
           <p className='mt-2 text-platinum-silver/70 text-lg'>Dashboard</p>
         </header>
-
+        {/* App Icons Grid */}
         <motion.div
           className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 max-w-7xl mx-auto'
           variants={{
@@ -207,6 +217,49 @@ const HomePage: React.FC = () => {
             <AppIcon key={tool.id} tool={tool} icon={icons[tool.id]} onClick={() => setSelectedApp(tool)} />
           ))}
         </motion.div>
+
+        {/* Key Metrics Section */}
+        <div className='max-w-7xl mx-auto mt-16'>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+            <h2 className='text-2xl font-semibold text-platinum-silver mb-6'>Key Performance Metrics</h2>
+
+            {metricsLoading ? (
+              <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className='bg-charcoal-slate p-4 rounded-lg animate-pulse'>
+                    <div className='flex items-center gap-4'>
+                      <div className='w-12 h-12 bg-champagne-gold/20 rounded-full'></div>
+                      <div>
+                        <div className='h-4 bg-platinum-silver/20 rounded w-20 mb-2'></div>
+                        <div className='h-6 bg-platinum-silver/20 rounded w-16'></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : metricsError ? (
+              <div className='bg-crimson-red/10 border border-crimson-red/20 rounded-lg p-4'>
+                <p className='text-crimson-red font-medium'>Unable to load metrics</p>
+                <p className='text-crimson-red/80 text-sm mt-1'>{metricsError}</p>
+              </div>
+            ) : (
+              <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
+                <StatCard
+                  icon={<DollarSign size={24} />}
+                  label='Total Net Profit'
+                  value={formatCurrency(metrics.totalProfit)}
+                />
+                <StatCard icon={<Clock size={24} />} label='Average Hold Time' value={`${metrics.avgHoldTime} Days`} />
+                <StatCard icon={<Hash size={24} />} label='Total Watches Sold' value={metrics.totalSold.toString()} />
+                <StatCard
+                  icon={<TrendingUp size={24} />}
+                  label='Average Profit/Watch'
+                  value={formatCurrency(metrics.avgProfit)}
+                />
+              </div>
+            )}
+          </motion.div>
+        </div>
 
         <div className='max-w-7xl mx-auto mt-16'>
           <AnimatePresence>

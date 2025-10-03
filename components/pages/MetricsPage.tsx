@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { DollarSign, Clock, Hash, TrendingUp, LayoutGrid, BarChart2 } from 'lucide-react';
 import { Watch, WatchSet } from '../../types';
 import apiService from '../../services/apiService';
+import StatCard from '../shared/StatCard';
+import { useMetrics } from '../../hooks/useMetrics';
+import { formatCurrency, calculateHoldTime, calculateNetProfit } from '../../utils/metricsHelpers';
 
 // Load watches from real API
 const fetchWatchesFromAPI = async (): Promise<Watch[]> => {
@@ -40,26 +43,6 @@ const fetchWatchesFromAPI = async (): Promise<Watch[]> => {
     throw error;
   }
 };
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-
-const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
-  <div className='bg-charcoal-slate p-4 rounded-lg flex items-center gap-4'>
-    <div className='flex-shrink-0 w-12 h-12 flex items-center justify-center bg-champagne-gold/10 text-champagne-gold rounded-full'>
-      {icon}
-    </div>
-    <div>
-      <p className='text-sm text-platinum-silver/70'>{label}</p>
-      <p className='text-2xl font-bold text-platinum-silver'>{value}</p>
-    </div>
-  </div>
-);
 
 const LineGraph: React.FC<{ data: { label: string; value: number }[] }> = ({ data }) => {
   const [activePoint, setActivePoint] = useState<{ label: string; value: number; x: number; y: number } | null>(null);
@@ -156,69 +139,53 @@ interface MetricsPageProps {
 }
 
 const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => {
-  const [watches, setWatches] = useState<Watch[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const [yearFilter, setYearFilter] = useState('All Time');
   const [monthFilter, setMonthFilter] = useState('All Months');
   const [viewMode, setViewMode] = useState<'graph' | 'table'>('graph');
 
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  // Use the shared metrics hook instead of local data fetching
+  const { metrics, isLoading, error, refetch } = useMetrics(inventoryUpdateTrigger);
+
+  // Still need to fetch watches for the detailed filtering and graphs
+  const [watches, setWatches] = useState<Watch[]>([]);
+  const [watchesLoading, setWatchesLoading] = useState(true);
+  const [watchesError, setWatchesError] = useState<string | null>(null);
+
+  const loadWatchData = useCallback(async () => {
+    setWatchesLoading(true);
+    setWatchesError(null);
     try {
       const fetchedWatches = await fetchWatchesFromAPI();
       setWatches(fetchedWatches);
     } catch (err: any) {
-      setError(err.message || 'Failed to load watch data');
+      setWatchesError(err.message || 'Failed to load watch data');
       console.error('Failed to load watch data:', err);
     } finally {
-      setIsLoading(false);
+      setWatchesLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadWatchData();
+  }, [loadWatchData]);
 
   // Reload data when inventory changes (triggered by inventoryUpdateTrigger)
   useEffect(() => {
     if (inventoryUpdateTrigger && inventoryUpdateTrigger > 0) {
       console.log('MetricsPage: Inventory update trigger received, reloading metrics data');
-      loadData();
+      loadWatchData();
     }
-  }, [inventoryUpdateTrigger, loadData]);
+  }, [inventoryUpdateTrigger, loadWatchData]);
 
   const soldWatches = useMemo(() => {
     return watches
       .filter((w) => w.dateSold && w.priceSold && w.purchasePrice)
       .map((w) => {
-        const totalIn = (w.purchasePrice || 0) + (w.accessoriesCost || 0);
-        const netProfit = (w.priceSold || 0) - totalIn - (w.fees || 0) - (w.shipping || 0) - (w.taxes || 0);
-        let holdTime: number | undefined = undefined;
-        if (w.inDate && w.dateSold) {
-          const start = new Date(w.inDate).getTime();
-          const end = new Date(w.dateSold).getTime();
-          if (end > start) holdTime = Math.round((end - start) / (1000 * 60 * 60 * 24));
-        }
+        const netProfit = calculateNetProfit(w);
+        const holdTime = calculateHoldTime(w.inDate, w.dateSold);
         return { ...w, netProfit, holdTime };
       });
   }, [watches]);
-
-  const overallStats = useMemo(() => {
-    if (soldWatches.length === 0) return { totalProfit: 0, avgHoldTime: 0, totalSold: 0, avgProfit: 0 };
-    const totalProfit = soldWatches.reduce((sum, w) => sum + (w.netProfit || 0), 0);
-    const totalHoldTime = soldWatches.reduce((sum, w) => sum + (w.holdTime || 0), 0);
-    const watchesWithHoldTime = soldWatches.filter((w) => w.holdTime !== undefined).length;
-
-    return {
-      totalProfit,
-      avgHoldTime: watchesWithHoldTime > 0 ? Math.round(totalHoldTime / watchesWithHoldTime) : 0,
-      totalSold: soldWatches.length,
-      avgProfit: soldWatches.length > 0 ? totalProfit / soldWatches.length : 0,
-    };
-  }, [soldWatches]);
 
   const monthlyData = useMemo(() => {
     const groups: { [key: string]: { profit: number; count: number } } = {};
@@ -256,7 +223,7 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
     return data;
   }, [monthlyData, yearFilter, monthFilter, months]);
 
-  if (isLoading) {
+  if (isLoading || watchesLoading) {
     return (
       <div className='flex justify-center items-center h-64'>
         <div className='w-8 h-8 border-4 border-champagne-gold border-t-transparent rounded-full animate-spin'></div>
@@ -264,14 +231,17 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
     );
   }
 
-  if (error) {
+  if (error || watchesError) {
     return (
       <div className='p-8'>
         <div className='bg-crimson-red/10 border border-crimson-red/20 rounded-lg p-4 mb-6'>
           <p className='text-crimson-red font-medium'>Error loading metrics data</p>
-          <p className='text-crimson-red/80 text-sm mt-1'>{error}</p>
+          <p className='text-crimson-red/80 text-sm mt-1'>{error || watchesError}</p>
           <button
-            onClick={loadData}
+            onClick={() => {
+              refetch();
+              loadWatchData();
+            }}
             className='mt-3 px-4 py-2 bg-crimson-red text-white rounded-lg text-sm hover:bg-red-700'
           >
             Retry
@@ -299,14 +269,14 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
           <StatCard
             icon={<DollarSign size={24} />}
             label='Total Net Profit'
-            value={formatCurrency(overallStats.totalProfit)}
+            value={formatCurrency(metrics.totalProfit)}
           />
-          <StatCard icon={<Clock size={24} />} label='Average Hold Time' value={`${overallStats.avgHoldTime} Days`} />
-          <StatCard icon={<Hash size={24} />} label='Total Watches Sold' value={overallStats.totalSold.toString()} />
+          <StatCard icon={<Clock size={24} />} label='Average Hold Time' value={`${metrics.avgHoldTime} Days`} />
+          <StatCard icon={<Hash size={24} />} label='Total Watches Sold' value={metrics.totalSold.toString()} />
           <StatCard
             icon={<TrendingUp size={24} />}
             label='Average Profit/Watch'
-            value={formatCurrency(overallStats.avgProfit)}
+            value={formatCurrency(metrics.avgProfit)}
           />
         </div>
       </div>
