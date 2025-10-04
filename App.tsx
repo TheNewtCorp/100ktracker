@@ -7,10 +7,15 @@ import AccountSettingsPage from './components/pages/AccountSettingsPage';
 import OperandiChallengePage from './components/promo/OperandiChallengePage';
 import PromoSignupsPage from './components/pages/PromoSignupsPage';
 import GeneralAdminDashboard from './components/admin/GeneralAdminDashboard';
+import { ThemeProvider } from './components/ThemeProvider';
+import ThemeToggle from './components/ThemeToggle';
+import { useTheme } from './hooks/useTheme';
 import apiService from './services/apiService';
 import adminApiService from './services/adminApiService';
 
-const App: React.FC = () => {
+// Main App Component (wrapped by ThemeProvider)
+const AppContent: React.FC = () => {
+  const { theme } = useTheme();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +105,11 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className='antialiased text-platinum-silver bg-obsidian-black min-h-screen'>
+    <div
+      className={`antialiased min-h-screen transition-colors duration-300 ${
+        theme === 'light' ? 'text-gray-900 bg-white' : 'text-platinum-silver bg-obsidian-black'
+      }`}
+    >
       {/* Handle special pages */}
       {isPricingPage ? (
         <OperandiChallengePage />
@@ -113,6 +122,10 @@ const App: React.FC = () => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
+            {/* Theme Toggle on Admin Login Page */}
+            <div className='absolute top-4 left-4 z-50'>
+              <ThemeToggle />
+            </div>
             <div className='min-h-screen bg-gray-900 flex items-center justify-center'>
               <div className='max-w-md w-full bg-gray-800 rounded-lg shadow-lg p-8'>
                 <div className='text-center mb-6'>
@@ -172,6 +185,10 @@ const App: React.FC = () => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
+            {/* Theme Toggle on General Admin Login Page */}
+            <div className='absolute top-4 left-4 z-50'>
+              <ThemeToggle />
+            </div>
             <div className='min-h-screen bg-gray-900 flex items-center justify-center'>
               <div className='max-w-md w-full bg-gray-800 rounded-lg shadow-lg p-8'>
                 <div className='text-center mb-6'>
@@ -240,6 +257,10 @@ const App: React.FC = () => {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.5 }}
             >
+              {/* Theme Toggle on Login Page */}
+              <div className='absolute top-4 left-4 z-50'>
+                <ThemeToggle />
+              </div>
               <LoginPage onLogin={handleLogin} isLoading={isLoggingIn} error={error} />
             </motion.div>
           ) : (
@@ -249,8 +270,9 @@ const App: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.3 }}
             >
-              {/* User Menu in top-right corner */}
-              <div className='flex justify-end p-4'>
+              {/* Theme Toggle and User Menu */}
+              <div className='flex justify-between items-start p-4'>
+                <ThemeToggle />
                 <UserMenu userInfo={userInfo} onAccountSettings={handleAccountSettings} onLogout={handleLogout} />
               </div>
               {showAccountSettings ? (
@@ -269,4 +291,14 @@ const App: React.FC = () => {
     </div>
   );
 };
+
+// Main App Component wrapped with ThemeProvider
+const App: React.FC = () => {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+};
+
 export default App;

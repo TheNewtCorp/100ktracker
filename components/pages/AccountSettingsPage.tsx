@@ -18,6 +18,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import apiService from '../../services/apiService';
+import { useTheme } from '../../hooks/useTheme';
 
 interface AccountSettingsPageProps {
   userInfo?: any;
@@ -26,6 +27,8 @@ interface AccountSettingsPageProps {
 }
 
 const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onUserInfoUpdate, onBack }) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'subscription' | 'payment'>('profile');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -184,22 +187,28 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
   ];
 
   return (
-    <div className='p-4 sm:p-8 min-h-screen'>
+    <div className={`p-4 sm:p-8 min-h-screen ${isDark ? '' : 'bg-gray-50'}`}>
       <div className='max-w-4xl mx-auto'>
         <div className='mb-8'>
           <div className='flex items-center gap-4 mb-4'>
             {onBack && (
               <button
                 onClick={onBack}
-                className='flex items-center gap-2 text-platinum-silver/70 hover:text-platinum-silver transition-colors'
+                className={`flex items-center gap-2 transition-colors ${
+                  isDark ? 'text-platinum-silver/70 hover:text-platinum-silver' : 'text-gray-600 hover:text-gray-800'
+                }`}
               >
                 <ArrowLeft size={20} />
                 <span>Back to Dashboard</span>
               </button>
             )}
           </div>
-          <h2 className='text-3xl font-bold text-platinum-silver mb-2'>Account Settings</h2>
-          <p className='text-platinum-silver/70'>Manage your account preferences and security settings.</p>
+          <h2 className={`text-3xl font-bold mb-2 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+            Account Settings
+          </h2>
+          <p className={isDark ? 'text-platinum-silver/70' : 'text-gray-600'}>
+            Manage your account preferences and security settings.
+          </p>
         </div>
 
         {/* Error/Success Messages */}
@@ -207,9 +216,11 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className='bg-crimson-red/10 border border-crimson-red/20 rounded-lg p-4 mb-6'
+            className={`rounded-lg p-4 mb-6 ${
+              isDark ? 'bg-crimson-red/10 border border-crimson-red/20' : 'bg-red-50 border border-red-200'
+            }`}
           >
-            <p className='text-crimson-red font-medium'>{error}</p>
+            <p className={`font-medium ${isDark ? 'text-crimson-red' : 'text-red-700'}`}>{error}</p>
           </motion.div>
         )}
 
@@ -217,14 +228,16 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className='bg-money-green/10 border border-money-green/20 rounded-lg p-4 mb-6'
+            className={`rounded-lg p-4 mb-6 ${
+              isDark ? 'bg-money-green/10 border border-money-green/20' : 'bg-green-50 border border-green-200'
+            }`}
           >
-            <p className='text-money-green font-medium'>{success}</p>
+            <p className={`font-medium ${isDark ? 'text-money-green' : 'text-green-700'}`}>{success}</p>
           </motion.div>
         )}
 
         {/* Tab Navigation */}
-        <div className='border-b border-champagne-gold/20 mb-8'>
+        <div className={`border-b mb-8 ${isDark ? 'border-champagne-gold/20' : 'border-gray-200'}`}>
           <nav className='flex space-x-8'>
             {tabs.map((tab) => (
               <button
@@ -232,8 +245,12 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                   activeTab === tab.id
-                    ? 'border-champagne-gold text-champagne-gold'
-                    : 'border-transparent text-platinum-silver/60 hover:text-platinum-silver hover:border-champagne-gold/50'
+                    ? isDark
+                      ? 'border-champagne-gold text-champagne-gold'
+                      : 'border-blue-600 text-blue-600'
+                    : isDark
+                      ? 'border-transparent text-platinum-silver/60 hover:text-platinum-silver hover:border-champagne-gold/50'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 {tab.icon}
@@ -251,23 +268,37 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
           transition={{ duration: 0.3 }}
         >
           {activeTab === 'profile' && (
-            <div className='bg-charcoal-slate rounded-xl p-6 border border-champagne-gold/10'>
-              <h3 className='text-xl font-semibold text-platinum-silver mb-6'>Profile Information</h3>
+            <div
+              className={`rounded-xl p-6 border ${isDark ? 'bg-charcoal-slate border-champagne-gold/10' : 'bg-white border-gray-200'}`}
+            >
+              <h3 className={`text-xl font-semibold mb-6 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+                Profile Information
+              </h3>
 
               <div className='space-y-6'>
                 <div>
-                  <label className='block text-sm font-medium text-platinum-silver/80 mb-2'>Username</label>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    Username
+                  </label>
                   <input
                     type='text'
                     value={profileForm.username}
                     onChange={(e) => setProfileForm({ ...profileForm, username: e.target.value })}
-                    className='w-full px-4 py-3 bg-obsidian-black border border-champagne-gold/20 rounded-lg text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold focus:outline-none transition-colors'
+                    className={`w-full px-4 py-3 border rounded-lg transition-colors focus:outline-none ${
+                      isDark
+                        ? 'bg-obsidian-black border-champagne-gold/20 text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold'
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                    }`}
                     placeholder='Enter your username'
                   />
                 </div>
 
                 <div>
-                  <label className='block text-sm font-medium text-platinum-silver/80 mb-2'>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
                     <Mail className='inline mr-2' size={16} />
                     Email Address
                   </label>
@@ -275,7 +306,11 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
                     type='email'
                     value={profileForm.email}
                     onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                    className='w-full px-4 py-3 bg-obsidian-black border border-champagne-gold/20 rounded-lg text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold focus:outline-none transition-colors'
+                    className={`w-full px-4 py-3 border rounded-lg transition-colors focus:outline-none ${
+                      isDark
+                        ? 'bg-obsidian-black border-champagne-gold/20 text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold'
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                    }`}
                     placeholder='Enter your email address'
                   />
                 </div>
@@ -283,7 +318,11 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
                 <button
                   onClick={handleProfileSave}
                   disabled={isLoading}
-                  className='flex items-center gap-2 bg-champagne-gold text-obsidian-black font-bold py-3 px-6 rounded-lg hover:bg-opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed'
+                  className={`flex items-center gap-2 font-bold py-3 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isDark
+                      ? 'bg-champagne-gold text-obsidian-black hover:bg-opacity-90'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
                 >
                   <Save size={20} />
                   {isLoading ? 'Saving...' : 'Save Changes'}
@@ -293,24 +332,40 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
           )}
 
           {activeTab === 'security' && (
-            <div className='bg-charcoal-slate rounded-xl p-6 border border-champagne-gold/10'>
-              <h3 className='text-xl font-semibold text-platinum-silver mb-6'>Security Settings</h3>
+            <div
+              className={`rounded-xl p-6 border ${isDark ? 'bg-charcoal-slate border-champagne-gold/10' : 'bg-white border-gray-200'}`}
+            >
+              <h3 className={`text-xl font-semibold mb-6 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+                Security Settings
+              </h3>
 
               <div className='space-y-6'>
                 <div>
-                  <label className='block text-sm font-medium text-platinum-silver/80 mb-2'>Current Password</label>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    Current Password
+                  </label>
                   <div className='relative'>
                     <input
                       type={showCurrentPassword ? 'text' : 'password'}
                       value={passwordForm.currentPassword}
                       onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                      className='w-full px-4 py-3 bg-obsidian-black border border-champagne-gold/20 rounded-lg text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold focus:outline-none transition-colors pr-12'
+                      className={`w-full px-4 py-3 border rounded-lg transition-colors focus:outline-none pr-12 ${
+                        isDark
+                          ? 'bg-obsidian-black border-champagne-gold/20 text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold'
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                      }`}
                       placeholder='Enter current password'
                     />
                     <button
                       type='button'
                       onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                      className='absolute right-3 top-1/2 transform -translate-y-1/2 text-platinum-silver/60 hover:text-platinum-silver'
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 transition-colors ${
+                        isDark
+                          ? 'text-platinum-silver/60 hover:text-platinum-silver'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
                     >
                       {showCurrentPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
@@ -318,19 +373,31 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
                 </div>
 
                 <div>
-                  <label className='block text-sm font-medium text-platinum-silver/80 mb-2'>New Password</label>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    New Password
+                  </label>
                   <div className='relative'>
                     <input
                       type={showNewPassword ? 'text' : 'password'}
                       value={passwordForm.newPassword}
                       onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                      className='w-full px-4 py-3 bg-obsidian-black border border-champagne-gold/20 rounded-lg text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold focus:outline-none transition-colors pr-12'
+                      className={`w-full px-4 py-3 border rounded-lg transition-colors focus:outline-none pr-12 ${
+                        isDark
+                          ? 'bg-obsidian-black border-champagne-gold/20 text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold'
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                      }`}
                       placeholder='Enter new password'
                     />
                     <button
                       type='button'
                       onClick={() => setShowNewPassword(!showNewPassword)}
-                      className='absolute right-3 top-1/2 transform -translate-y-1/2 text-platinum-silver/60 hover:text-platinum-silver'
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 transition-colors ${
+                        isDark
+                          ? 'text-platinum-silver/60 hover:text-platinum-silver'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
                     >
                       {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
@@ -338,12 +405,20 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
                 </div>
 
                 <div>
-                  <label className='block text-sm font-medium text-platinum-silver/80 mb-2'>Confirm New Password</label>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    Confirm New Password
+                  </label>
                   <input
                     type='password'
                     value={passwordForm.confirmPassword}
                     onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                    className='w-full px-4 py-3 bg-obsidian-black border border-champagne-gold/20 rounded-lg text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold focus:outline-none transition-colors'
+                    className={`w-full px-4 py-3 border rounded-lg transition-colors focus:outline-none ${
+                      isDark
+                        ? 'bg-obsidian-black border-champagne-gold/20 text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold'
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                    }`}
                     placeholder='Confirm new password'
                   />
                 </div>
@@ -356,7 +431,11 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
                     !passwordForm.newPassword ||
                     !passwordForm.confirmPassword
                   }
-                  className='flex items-center gap-2 bg-champagne-gold text-obsidian-black font-bold py-3 px-6 rounded-lg hover:bg-opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed'
+                  className={`flex items-center gap-2 font-bold py-3 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isDark
+                      ? 'bg-champagne-gold text-obsidian-black hover:bg-opacity-90'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
                 >
                   <Key size={20} />
                   {isLoading ? 'Changing...' : 'Change Password'}
@@ -368,38 +447,70 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
           {activeTab === 'subscription' && (
             <div className='space-y-6'>
               {/* Plan Overview Card */}
-              <div className='bg-charcoal-slate rounded-xl p-6 border border-champagne-gold/10'>
+              <div
+                className={`rounded-xl p-6 border ${isDark ? 'bg-charcoal-slate border-champagne-gold/10' : 'bg-white border-gray-200'}`}
+              >
                 <div className='flex items-center justify-between mb-6'>
-                  <h3 className='text-xl font-semibold text-platinum-silver'>Current Plan</h3>
+                  <h3 className={`text-xl font-semibold ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+                    Current Plan
+                  </h3>
                   {subscription?.status === 'active' && (
-                    <div className='flex items-center gap-2 px-3 py-1 bg-money-green/20 rounded-full border border-money-green/40'>
-                      <CheckCircle size={16} className='text-money-green' />
-                      <span className='text-money-green font-medium text-sm'>Active</span>
+                    <div
+                      className={`flex items-center gap-2 px-3 py-1 rounded-full border ${
+                        isDark ? 'bg-money-green/20 border-money-green/40' : 'bg-green-100 border-green-300'
+                      }`}
+                    >
+                      <CheckCircle size={16} className={isDark ? 'text-money-green' : 'text-green-600'} />
+                      <span className={`font-medium text-sm ${isDark ? 'text-money-green' : 'text-green-600'}`}>
+                        Active
+                      </span>
                     </div>
                   )}
                   {subscription?.status === 'past_due' && (
-                    <div className='flex items-center gap-2 px-3 py-1 bg-yellow-500/20 rounded-full border border-yellow-500/40'>
-                      <AlertCircle size={16} className='text-yellow-500' />
-                      <span className='text-yellow-500 font-medium text-sm'>Past Due</span>
+                    <div
+                      className={`flex items-center gap-2 px-3 py-1 rounded-full border ${
+                        isDark ? 'bg-yellow-500/20 border-yellow-500/40' : 'bg-yellow-100 border-yellow-300'
+                      }`}
+                    >
+                      <AlertCircle size={16} className={isDark ? 'text-yellow-500' : 'text-yellow-600'} />
+                      <span className={`font-medium text-sm ${isDark ? 'text-yellow-500' : 'text-yellow-600'}`}>
+                        Past Due
+                      </span>
                     </div>
                   )}
                   {subscription?.status === 'canceled' && (
-                    <div className='flex items-center gap-2 px-3 py-1 bg-crimson-red/20 rounded-full border border-crimson-red/40'>
-                      <XCircle size={16} className='text-crimson-red' />
-                      <span className='text-crimson-red font-medium text-sm'>Canceled</span>
+                    <div
+                      className={`flex items-center gap-2 px-3 py-1 rounded-full border ${
+                        isDark ? 'bg-crimson-red/20 border-crimson-red/40' : 'bg-red-100 border-red-300'
+                      }`}
+                    >
+                      <XCircle size={16} className={isDark ? 'text-crimson-red' : 'text-red-600'} />
+                      <span className={`font-medium text-sm ${isDark ? 'text-crimson-red' : 'text-red-600'}`}>
+                        Canceled
+                      </span>
                     </div>
                   )}
                   {(subscription?.status === 'free' || !subscription?.status) && (
-                    <div className='flex items-center gap-2 px-3 py-1 bg-platinum-silver/20 rounded-full border border-platinum-silver/40'>
-                      <Shield size={16} className='text-platinum-silver' />
-                      <span className='text-platinum-silver font-medium text-sm'>Free</span>
+                    <div
+                      className={`flex items-center gap-2 px-3 py-1 rounded-full border ${
+                        isDark ? 'bg-platinum-silver/20 border-platinum-silver/40' : 'bg-gray-100 border-gray-300'
+                      }`}
+                    >
+                      <Shield size={16} className={isDark ? 'text-platinum-silver' : 'text-gray-600'} />
+                      <span className={`font-medium text-sm ${isDark ? 'text-platinum-silver' : 'text-gray-600'}`}>
+                        Free
+                      </span>
                     </div>
                   )}
                 </div>
 
                 {subscriptionLoading ? (
                   <div className='flex items-center justify-center py-8'>
-                    <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-champagne-gold'></div>
+                    <div
+                      className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
+                        isDark ? 'border-champagne-gold' : 'border-blue-600'
+                      }`}
+                    ></div>
                   </div>
                 ) : (
                   <div className='grid md:grid-cols-2 gap-6'>
@@ -407,25 +518,39 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
                     <div>
                       <div className='flex items-center gap-3 mb-4'>
                         {subscription?.tier === 'platinum' && (
-                          <div className='p-2 bg-champagne-gold/20 rounded-lg border border-champagne-gold/40'>
-                            <Crown size={24} className='text-champagne-gold' />
+                          <div
+                            className={`p-2 rounded-lg border ${
+                              isDark
+                                ? 'bg-champagne-gold/20 border-champagne-gold/40'
+                                : 'bg-yellow-100 border-yellow-300'
+                            }`}
+                          >
+                            <Crown size={24} className={isDark ? 'text-champagne-gold' : 'text-yellow-600'} />
                           </div>
                         )}
                         {subscription?.tier === 'operandi' && (
-                          <div className='p-2 bg-platinum-silver/20 rounded-lg border border-platinum-silver/40'>
-                            <Shield size={24} className='text-platinum-silver' />
+                          <div
+                            className={`p-2 rounded-lg border ${
+                              isDark ? 'bg-platinum-silver/20 border-platinum-silver/40' : 'bg-gray-100 border-gray-300'
+                            }`}
+                          >
+                            <Shield size={24} className={isDark ? 'text-platinum-silver' : 'text-gray-600'} />
                           </div>
                         )}
                         {(subscription?.tier === 'free' || !subscription?.tier) && (
-                          <div className='p-2 bg-obsidian-black/50 rounded-lg border border-platinum-silver/20'>
-                            <User size={24} className='text-platinum-silver/60' />
+                          <div
+                            className={`p-2 rounded-lg border ${
+                              isDark ? 'bg-obsidian-black/50 border-platinum-silver/20' : 'bg-gray-50 border-gray-200'
+                            }`}
+                          >
+                            <User size={24} className={isDark ? 'text-platinum-silver/60' : 'text-gray-500'} />
                           </div>
                         )}
                         <div>
-                          <h4 className='text-lg font-semibold text-platinum-silver'>
+                          <h4 className={`text-lg font-semibold ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
                             {subscription?.tierName || 'Basic Plan'}
                           </h4>
-                          <p className='text-platinum-silver/60 text-sm'>
+                          <p className={`text-sm ${isDark ? 'text-platinum-silver/60' : 'text-gray-600'}`}>
                             {subscription?.tierDescription || 'Basic watch tracking functionality'}
                           </p>
                         </div>
@@ -433,15 +558,19 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
 
                       <div className='space-y-3'>
                         <div className='flex justify-between items-center'>
-                          <span className='text-platinum-silver/70'>Monthly Price:</span>
-                          <span className='font-semibold text-champagne-gold'>${subscription?.price || 0}/month</span>
+                          <span className={isDark ? 'text-platinum-silver/70' : 'text-gray-600'}>Monthly Price:</span>
+                          <span className={`font-semibold ${isDark ? 'text-champagne-gold' : 'text-blue-600'}`}>
+                            ${subscription?.price || 0}/month
+                          </span>
                         </div>
-                        <div className='text-xs text-platinum-silver/50 mt-0.5'>Introductory Rate</div>
+                        <div className={`text-xs mt-0.5 ${isDark ? 'text-platinum-silver/50' : 'text-gray-500'}`}>
+                          Introductory Rate
+                        </div>
 
                         {subscription?.startDate && (
                           <div className='flex justify-between items-center'>
-                            <span className='text-platinum-silver/70'>Started:</span>
-                            <span className='text-platinum-silver'>
+                            <span className={isDark ? 'text-platinum-silver/70' : 'text-gray-600'}>Started:</span>
+                            <span className={isDark ? 'text-platinum-silver' : 'text-gray-900'}>
                               {new Date(subscription.startDate).toLocaleDateString()}
                             </span>
                           </div>
@@ -449,10 +578,10 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
 
                         {subscription?.endDate && (
                           <div className='flex justify-between items-center'>
-                            <span className='text-platinum-silver/70'>
+                            <span className={isDark ? 'text-platinum-silver/70' : 'text-gray-600'}>
                               {subscription?.status === 'active' ? 'Next Billing:' : 'Ended:'}
                             </span>
-                            <span className='text-platinum-silver'>
+                            <span className={isDark ? 'text-platinum-silver' : 'text-gray-900'}>
                               {new Date(subscription.endDate).toLocaleDateString()}
                             </span>
                           </div>
@@ -460,69 +589,101 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
 
                         {subscription?.daysRemaining !== null && subscription?.daysRemaining > 0 && (
                           <div className='flex justify-between items-center'>
-                            <span className='text-platinum-silver/70'>Days Remaining:</span>
-                            <span className='text-money-green font-medium'>{subscription.daysRemaining} days</span>
+                            <span className={isDark ? 'text-platinum-silver/70' : 'text-gray-600'}>
+                              Days Remaining:
+                            </span>
+                            <span className={`font-medium ${isDark ? 'text-money-green' : 'text-green-600'}`}>
+                              {subscription.daysRemaining} days
+                            </span>
                           </div>
                         )}
                       </div>
                     </div>
 
                     {/* Plan Features */}
-                    <div className='bg-obsidian-black rounded-lg p-4 border border-champagne-gold/20'>
-                      <h5 className='font-semibold text-platinum-silver mb-3'>Plan Features</h5>
+                    <div
+                      className={`rounded-lg p-4 border ${
+                        isDark ? 'bg-obsidian-black border-champagne-gold/20' : 'bg-gray-50 border-gray-200'
+                      }`}
+                    >
+                      <h5 className={`font-semibold mb-3 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+                        Plan Features
+                      </h5>
                       <div className='space-y-2'>
                         {subscription?.tier === 'platinum' && (
                           <>
-                            <div className='flex items-center gap-2 text-sm text-platinum-silver'>
-                              <CheckCircle size={16} className='text-money-green' />
+                            <div
+                              className={`flex items-center gap-2 text-sm ${isDark ? 'text-platinum-silver' : 'text-gray-700'}`}
+                            >
+                              <CheckCircle size={16} className={isDark ? 'text-money-green' : 'text-green-600'} />
                               <span>Unlimited watch tracking</span>
                             </div>
-                            <div className='flex items-center gap-2 text-sm text-platinum-silver'>
-                              <CheckCircle size={16} className='text-money-green' />
+                            <div
+                              className={`flex items-center gap-2 text-sm ${isDark ? 'text-platinum-silver' : 'text-gray-700'}`}
+                            >
+                              <CheckCircle size={16} className={isDark ? 'text-money-green' : 'text-green-600'} />
                               <span>Advanced analytics & reports</span>
                             </div>
-                            <div className='flex items-center gap-2 text-sm text-platinum-silver'>
-                              <CheckCircle size={16} className='text-money-green' />
+                            <div
+                              className={`flex items-center gap-2 text-sm ${isDark ? 'text-platinum-silver' : 'text-gray-700'}`}
+                            >
+                              <CheckCircle size={16} className={isDark ? 'text-money-green' : 'text-green-600'} />
                               <span>Invoice management</span>
                             </div>
-                            <div className='flex items-center gap-2 text-sm text-platinum-silver'>
-                              <CheckCircle size={16} className='text-money-green' />
+                            <div
+                              className={`flex items-center gap-2 text-sm ${isDark ? 'text-platinum-silver' : 'text-gray-700'}`}
+                            >
+                              <CheckCircle size={16} className={isDark ? 'text-money-green' : 'text-green-600'} />
                               <span>Priority support</span>
                             </div>
                           </>
                         )}
                         {subscription?.tier === 'operandi' && (
                           <>
-                            <div className='flex items-center gap-2 text-sm text-platinum-silver'>
-                              <CheckCircle size={16} className='text-money-green' />
+                            <div
+                              className={`flex items-center gap-2 text-sm ${isDark ? 'text-platinum-silver' : 'text-gray-700'}`}
+                            >
+                              <CheckCircle size={16} className={isDark ? 'text-money-green' : 'text-green-600'} />
                               <span>Enhanced watch tracking</span>
                             </div>
-                            <div className='flex items-center gap-2 text-sm text-platinum-silver'>
-                              <CheckCircle size={16} className='text-money-green' />
+                            <div
+                              className={`flex items-center gap-2 text-sm ${isDark ? 'text-platinum-silver' : 'text-gray-700'}`}
+                            >
+                              <CheckCircle size={16} className={isDark ? 'text-money-green' : 'text-green-600'} />
                               <span>Challenge tracking tools</span>
                             </div>
-                            <div className='flex items-center gap-2 text-sm text-platinum-silver'>
-                              <CheckCircle size={16} className='text-money-green' />
+                            <div
+                              className={`flex items-center gap-2 text-sm ${isDark ? 'text-platinum-silver' : 'text-gray-700'}`}
+                            >
+                              <CheckCircle size={16} className={isDark ? 'text-money-green' : 'text-green-600'} />
                               <span>Basic analytics</span>
                             </div>
-                            <div className='flex items-center gap-2 text-sm text-platinum-silver'>
-                              <CheckCircle size={16} className='text-money-green' />
+                            <div
+                              className={`flex items-center gap-2 text-sm ${isDark ? 'text-platinum-silver' : 'text-gray-700'}`}
+                            >
+                              <CheckCircle size={16} className={isDark ? 'text-money-green' : 'text-green-600'} />
                               <span>Standard support</span>
                             </div>
                           </>
                         )}
                         {(subscription?.tier === 'free' || !subscription?.tier) && (
                           <>
-                            <div className='flex items-center gap-2 text-sm text-platinum-silver/60'>
-                              <CheckCircle size={16} className='text-platinum-silver/40' />
+                            <div
+                              className={`flex items-center gap-2 text-sm ${isDark ? 'text-platinum-silver/60' : 'text-gray-500'}`}
+                            >
+                              <CheckCircle size={16} className={isDark ? 'text-platinum-silver/40' : 'text-gray-400'} />
                               <span>Basic watch tracking</span>
                             </div>
-                            <div className='flex items-center gap-2 text-sm text-platinum-silver/60'>
-                              <CheckCircle size={16} className='text-platinum-silver/40' />
+                            <div
+                              className={`flex items-center gap-2 text-sm ${isDark ? 'text-platinum-silver/60' : 'text-gray-500'}`}
+                            >
+                              <CheckCircle size={16} className={isDark ? 'text-platinum-silver/40' : 'text-gray-400'} />
                               <span>Limited storage</span>
                             </div>
-                            <div className='flex items-center gap-2 text-sm text-platinum-silver/60'>
-                              <CheckCircle size={16} className='text-platinum-silver/40' />
+                            <div
+                              className={`flex items-center gap-2 text-sm ${isDark ? 'text-platinum-silver/60' : 'text-gray-500'}`}
+                            >
+                              <CheckCircle size={16} className={isDark ? 'text-platinum-silver/40' : 'text-gray-400'} />
                               <span>Community support</span>
                             </div>
                           </>
@@ -535,37 +696,59 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
 
               {/* Billing Information */}
               {subscription?.status !== 'free' && subscription?.tier !== 'free' && (
-                <div className='bg-charcoal-slate rounded-xl p-6 border border-champagne-gold/10'>
+                <div
+                  className={`rounded-xl p-6 border ${isDark ? 'bg-charcoal-slate border-champagne-gold/10' : 'bg-white border-gray-200'}`}
+                >
                   <div className='flex items-center gap-2 mb-4'>
-                    <Calendar size={20} className='text-champagne-gold' />
-                    <h3 className='text-xl font-semibold text-platinum-silver'>Billing Information</h3>
+                    <Calendar size={20} className={isDark ? 'text-champagne-gold' : 'text-blue-600'} />
+                    <h3 className={`text-xl font-semibold ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+                      Billing Information
+                    </h3>
                   </div>
 
                   <div className='grid md:grid-cols-3 gap-4'>
-                    <div className='bg-obsidian-black rounded-lg p-4 border border-champagne-gold/20'>
+                    <div
+                      className={`rounded-lg p-4 border ${
+                        isDark ? 'bg-obsidian-black border-champagne-gold/20' : 'bg-gray-50 border-gray-200'
+                      }`}
+                    >
                       <div className='flex items-center gap-2 mb-2'>
-                        <Clock size={16} className='text-platinum-silver/60' />
-                        <span className='text-sm text-platinum-silver/70'>Billing Cycle</span>
+                        <Clock size={16} className={isDark ? 'text-platinum-silver/60' : 'text-gray-500'} />
+                        <span className={`text-sm ${isDark ? 'text-platinum-silver/70' : 'text-gray-600'}`}>
+                          Billing Cycle
+                        </span>
                       </div>
-                      <p className='font-semibold text-platinum-silver'>Monthly</p>
+                      <p className={`font-semibold ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>Monthly</p>
                     </div>
 
-                    <div className='bg-obsidian-black rounded-lg p-4 border border-champagne-gold/20'>
+                    <div
+                      className={`rounded-lg p-4 border ${
+                        isDark ? 'bg-obsidian-black border-champagne-gold/20' : 'bg-gray-50 border-gray-200'
+                      }`}
+                    >
                       <div className='flex items-center gap-2 mb-2'>
-                        <CreditCard size={16} className='text-platinum-silver/60' />
-                        <span className='text-sm text-platinum-silver/70'>Amount</span>
+                        <CreditCard size={16} className={isDark ? 'text-platinum-silver/60' : 'text-gray-500'} />
+                        <span className={`text-sm ${isDark ? 'text-platinum-silver/70' : 'text-gray-600'}`}>
+                          Amount
+                        </span>
                       </div>
-                      <p className='font-semibold text-champagne-gold'>${subscription?.price || 0}.00</p>
+                      <p className={`font-semibold ${isDark ? 'text-champagne-gold' : 'text-blue-600'}`}>
+                        ${subscription?.price || 0}.00
+                      </p>
                     </div>
 
-                    <div className='bg-obsidian-black rounded-lg p-4 border border-champagne-gold/20'>
+                    <div
+                      className={`rounded-lg p-4 border ${
+                        isDark ? 'bg-obsidian-black border-champagne-gold/20' : 'bg-gray-50 border-gray-200'
+                      }`}
+                    >
                       <div className='flex items-center gap-2 mb-2'>
-                        <Calendar size={16} className='text-platinum-silver/60' />
-                        <span className='text-sm text-platinum-silver/70'>
+                        <Calendar size={16} className={isDark ? 'text-platinum-silver/60' : 'text-gray-500'} />
+                        <span className={`text-sm ${isDark ? 'text-platinum-silver/70' : 'text-gray-600'}`}>
                           {subscription?.status === 'active' ? 'Next Billing' : 'Last Billed'}
                         </span>
                       </div>
-                      <p className='font-semibold text-platinum-silver'>
+                      <p className={`font-semibold ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
                         {subscription?.endDate ? new Date(subscription.endDate).toLocaleDateString() : 'N/A'}
                       </p>
                     </div>
@@ -574,24 +757,40 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
               )}
 
               {/* Support Contact */}
-              <div className='bg-charcoal-slate rounded-xl p-6 border border-champagne-gold/10'>
-                <h3 className='text-xl font-semibold text-platinum-silver mb-4'>Need Help?</h3>
-                <div className='bg-obsidian-black rounded-lg p-4 border border-champagne-gold/20'>
-                  <p className='text-platinum-silver/70 text-sm mb-4 leading-relaxed'>
+              <div
+                className={`rounded-xl p-6 border ${isDark ? 'bg-charcoal-slate border-champagne-gold/10' : 'bg-white border-gray-200'}`}
+              >
+                <h3 className={`text-xl font-semibold mb-4 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+                  Need Help?
+                </h3>
+                <div
+                  className={`rounded-lg p-4 border ${
+                    isDark ? 'bg-obsidian-black border-champagne-gold/20' : 'bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <p className={`text-sm mb-4 leading-relaxed ${isDark ? 'text-platinum-silver/70' : 'text-gray-600'}`}>
                     For billing questions, plan changes, or subscription support, please contact our team. We're here to
                     help you get the most out of your 100K Tracker experience.
                   </p>
                   <div className='flex flex-col sm:flex-row gap-3'>
                     <button
                       onClick={() => window.open('mailto:support@100ktracker.com?subject=Subscription Support')}
-                      className='flex items-center justify-center gap-2 bg-champagne-gold text-obsidian-black font-medium py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all duration-300'
+                      className={`flex items-center justify-center gap-2 font-medium py-2 px-4 rounded-lg transition-all duration-300 ${
+                        isDark
+                          ? 'bg-champagne-gold text-obsidian-black hover:bg-opacity-90'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
                     >
                       <Mail size={16} />
                       Email Support
                     </button>
                     <button
                       onClick={() => setActiveTab('payment')}
-                      className='flex items-center justify-center gap-2 bg-obsidian-black border border-champagne-gold/40 text-champagne-gold font-medium py-2 px-4 rounded-lg hover:bg-champagne-gold/10 transition-all duration-300'
+                      className={`flex items-center justify-center gap-2 font-medium py-2 px-4 rounded-lg border transition-all duration-300 ${
+                        isDark
+                          ? 'bg-obsidian-black border-champagne-gold/40 text-champagne-gold hover:bg-champagne-gold/10'
+                          : 'bg-white border-blue-600 text-blue-600 hover:bg-blue-50'
+                      }`}
                     >
                       <CreditCard size={16} />
                       Manage Stripe Settings
@@ -603,69 +802,111 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
           )}
 
           {activeTab === 'payment' && (
-            <div className='bg-charcoal-slate rounded-xl p-6 border border-champagne-gold/10'>
-              <h3 className='text-xl font-semibold text-platinum-silver mb-6'>Stripe Configuration</h3>
+            <div
+              className={`rounded-xl p-6 border ${isDark ? 'bg-charcoal-slate border-champagne-gold/10' : 'bg-white border-gray-200'}`}
+            >
+              <h3 className={`text-xl font-semibold mb-6 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+                Stripe Configuration
+              </h3>
 
-              <div className='mb-6 p-4 bg-obsidian-black rounded-lg border border-champagne-gold/20'>
-                <h4 className='text-champagne-gold font-semibold mb-2'>Why do I need to configure Stripe?</h4>
-                <p className='text-platinum-silver/70 text-sm leading-relaxed'>
+              <div
+                className={`mb-6 p-4 rounded-lg border ${
+                  isDark ? 'bg-obsidian-black border-champagne-gold/20' : 'bg-blue-50 border-blue-200'
+                }`}
+              >
+                <h4 className={`font-semibold mb-2 ${isDark ? 'text-champagne-gold' : 'text-blue-600'}`}>
+                  Why do I need to configure Stripe?
+                </h4>
+                <p className={`text-sm leading-relaxed ${isDark ? 'text-platinum-silver/70' : 'text-gray-600'}`}>
                   To create and manage invoices, you need to connect your own Stripe account. This ensures your payments
                   go directly to you and provides secure, encrypted storage of your API keys.
                 </p>
               </div>
 
               {hasStripeConfig && (
-                <div className='mb-6 p-4 bg-money-green/10 rounded-lg border border-money-green/20'>
+                <div
+                  className={`mb-6 p-4 rounded-lg border ${
+                    isDark ? 'bg-money-green/10 border-money-green/20' : 'bg-green-50 border-green-200'
+                  }`}
+                >
                   <div className='flex items-center gap-2'>
-                    <div className='w-2 h-2 bg-money-green rounded-full'></div>
-                    <span className='text-money-green font-medium'>Stripe configured successfully</span>
+                    <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-money-green' : 'bg-green-600'}`}></div>
+                    <span className={`font-medium ${isDark ? 'text-money-green' : 'text-green-600'}`}>
+                      Stripe configured successfully
+                    </span>
                   </div>
                 </div>
               )}
 
               <div className='space-y-6'>
                 <div>
-                  <label className='block text-sm font-medium text-platinum-silver/80 mb-2'>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
                     Stripe Publishable Key
                   </label>
                   <input
                     type='text'
                     value={stripeForm.publishableKey}
                     onChange={(e) => setStripeForm({ ...stripeForm, publishableKey: e.target.value })}
-                    className='w-full px-4 py-3 bg-obsidian-black border border-champagne-gold/20 rounded-lg text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold focus:outline-none transition-colors'
+                    className={`w-full px-4 py-3 border rounded-lg transition-colors focus:outline-none ${
+                      isDark
+                        ? 'bg-obsidian-black border-champagne-gold/20 text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold'
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                    }`}
                     placeholder='pk_test_...'
                   />
-                  <p className='text-platinum-silver/60 text-xs mt-1'>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-platinum-silver/60' : 'text-gray-500'}`}>
                     Your publishable key (starts with pk_test_ or pk_live_)
                   </p>
                 </div>
 
                 <div>
-                  <label className='block text-sm font-medium text-platinum-silver/80 mb-2'>Stripe Secret Key</label>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    Stripe Secret Key
+                  </label>
                   <div className='relative'>
                     <input
                       type={showStripeSecretKey ? 'text' : 'password'}
                       value={stripeForm.secretKey}
                       onChange={(e) => setStripeForm({ ...stripeForm, secretKey: e.target.value })}
-                      className='w-full px-4 py-3 bg-obsidian-black border border-champagne-gold/20 rounded-lg text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold focus:outline-none transition-colors pr-12'
+                      className={`w-full px-4 py-3 border rounded-lg transition-colors focus:outline-none pr-12 ${
+                        isDark
+                          ? 'bg-obsidian-black border-champagne-gold/20 text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold'
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                      }`}
                       placeholder='sk_test_...'
                     />
                     <button
                       type='button'
                       onClick={() => setShowStripeSecretKey(!showStripeSecretKey)}
-                      className='absolute right-3 top-1/2 transform -translate-y-1/2 text-platinum-silver/60 hover:text-platinum-silver'
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 transition-colors ${
+                        isDark
+                          ? 'text-platinum-silver/60 hover:text-platinum-silver'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
                     >
                       {showStripeSecretKey ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
                   </div>
-                  <p className='text-platinum-silver/60 text-xs mt-1'>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-platinum-silver/60' : 'text-gray-500'}`}>
                     Your secret key (starts with sk_test_ or sk_live_) - stored encrypted
                   </p>
                 </div>
 
-                <div className='p-4 bg-obsidian-black rounded-lg border border-champagne-gold/20'>
-                  <h4 className='text-champagne-gold font-semibold mb-2 text-sm'>How to get your Stripe API keys:</h4>
-                  <ol className='text-platinum-silver/70 text-xs space-y-1 list-decimal list-inside'>
+                <div
+                  className={`p-4 rounded-lg border ${
+                    isDark ? 'bg-obsidian-black border-champagne-gold/20' : 'bg-yellow-50 border-yellow-200'
+                  }`}
+                >
+                  <h4 className={`font-semibold mb-2 text-sm ${isDark ? 'text-champagne-gold' : 'text-yellow-600'}`}>
+                    How to get your Stripe API keys:
+                  </h4>
+                  <ol
+                    className={`text-xs space-y-1 list-decimal list-inside ${isDark ? 'text-platinum-silver/70' : 'text-gray-600'}`}
+                  >
                     <li>Log in to your Stripe Dashboard</li>
                     <li>Go to Developers → API keys</li>
                     <li>Copy your Publishable key and Secret key</li>
@@ -676,7 +917,11 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
                 <button
                   onClick={handleStripeSave}
                   disabled={isLoading || !stripeForm.secretKey || !stripeForm.publishableKey}
-                  className='flex items-center gap-2 bg-champagne-gold text-obsidian-black font-bold py-3 px-6 rounded-lg hover:bg-opacity-90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed'
+                  className={`flex items-center gap-2 font-bold py-3 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isDark
+                      ? 'bg-champagne-gold text-obsidian-black hover:bg-opacity-90'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
                 >
                   <Save size={20} />
                   {isLoading ? 'Saving...' : 'Save Stripe Configuration'}

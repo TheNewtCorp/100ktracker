@@ -5,6 +5,7 @@ import { Watch, WatchSet } from '../../types';
 import apiService from '../../services/apiService';
 import StatCard from '../shared/StatCard';
 import { useMetrics } from '../../hooks/useMetrics';
+import { useTheme } from '../../hooks/useTheme';
 import { formatCurrency, calculateHoldTime, calculateNetProfit } from '../../utils/metricsHelpers';
 
 // Load watches from real API
@@ -44,7 +45,10 @@ const fetchWatchesFromAPI = async (): Promise<Watch[]> => {
   }
 };
 
-const LineGraph: React.FC<{ data: { label: string; value: number }[] }> = ({ data }) => {
+const LineGraph: React.FC<{ data: { label: string; value: number }[]; theme: 'light' | 'dark' }> = ({
+  data,
+  theme,
+}) => {
   const [activePoint, setActivePoint] = useState<{ label: string; value: number; x: number; y: number } | null>(null);
   const width = 500;
   const height = 250;
@@ -52,7 +56,11 @@ const LineGraph: React.FC<{ data: { label: string; value: number }[] }> = ({ dat
 
   if (data.length < 2) {
     return (
-      <div className='h-[250px] flex items-center justify-center text-platinum-silver/60'>
+      <div
+        className={`h-[250px] flex items-center justify-center ${
+          theme === 'light' ? 'text-gray-500' : 'text-platinum-silver/60'
+        }`}
+      >
         Not enough data to draw a graph.
       </div>
     );
@@ -71,6 +79,11 @@ const LineGraph: React.FC<{ data: { label: string; value: number }[] }> = ({ dat
 
   const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + `${p.x} ${p.y}`).join(' ');
 
+  const gridStroke = theme === 'light' ? 'rgba(156, 163, 175, 0.3)' : 'rgba(200, 169, 126, 0.1)';
+  const textFill = theme === 'light' ? 'rgba(107, 114, 128, 0.8)' : 'rgba(230, 230, 230, 0.6)';
+  const lineStroke = theme === 'light' ? '#3B82F6' : '#C8A97E';
+  const pointFill = theme === 'light' ? '#3B82F6' : '#C8A97E';
+
   return (
     <div className='relative'>
       <svg viewBox={`0 0 ${width} ${height}`} className='w-full h-auto'>
@@ -80,8 +93,8 @@ const LineGraph: React.FC<{ data: { label: string; value: number }[] }> = ({ dat
           const val = maxVal - i * (valueRange / 4);
           return (
             <g key={i}>
-              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke='rgba(200, 169, 126, 0.1)' />
-              <text x={padding.left - 8} y={y + 4} fill='rgba(230, 230, 230, 0.6)' textAnchor='end' fontSize='10'>
+              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke={gridStroke} />
+              <text x={padding.left - 8} y={y + 4} fill={textFill} textAnchor='end' fontSize='10'>
                 {formatCurrency(val)}
               </text>
             </g>
@@ -90,12 +103,12 @@ const LineGraph: React.FC<{ data: { label: string; value: number }[] }> = ({ dat
 
         {/* X-axis labels */}
         {points.map((p, i) => (
-          <text key={i} x={p.x} y={height - 10} fill='rgba(230, 230, 230, 0.6)' textAnchor='middle' fontSize='10'>
+          <text key={i} x={p.x} y={height - 10} fill={textFill} textAnchor='middle' fontSize='10'>
             {p.label}
           </text>
         ))}
 
-        <path d={path} fill='none' stroke='#C8A97E' strokeWidth='2' />
+        <path d={path} fill='none' stroke={lineStroke} strokeWidth='2' />
 
         {points.map((p, i) => (
           <circle
@@ -109,13 +122,17 @@ const LineGraph: React.FC<{ data: { label: string; value: number }[] }> = ({ dat
           />
         ))}
         {points.map((p, i) => (
-          <circle key={`solid-${i}`} cx={p.x} cy={p.y} r='3' fill='#C8A97E' className='pointer-events-none' />
+          <circle key={`solid-${i}`} cx={p.x} cy={p.y} r='3' fill={pointFill} className='pointer-events-none' />
         ))}
       </svg>
       <AnimatePresence>
         {activePoint && (
           <motion.div
-            className='absolute bg-obsidian-black p-2 rounded-md text-xs pointer-events-none shadow-lg border border-champagne-gold/20'
+            className={`absolute p-2 rounded-md text-xs pointer-events-none shadow-lg border ${
+              theme === 'light'
+                ? 'bg-white border-gray-200 text-gray-900'
+                : 'bg-obsidian-black border-champagne-gold/20 text-platinum-silver'
+            }`}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
@@ -125,7 +142,9 @@ const LineGraph: React.FC<{ data: { label: string; value: number }[] }> = ({ dat
               transform: `translate(-50%, -120%)`,
             }}
           >
-            <p className='font-bold text-platinum-silver'>{activePoint.label}</p>
+            <p className={`font-bold ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
+              {activePoint.label}
+            </p>
             <p className='text-money-green'>{formatCurrency(activePoint.value)}</p>
           </motion.div>
         )}
@@ -139,6 +158,7 @@ interface MetricsPageProps {
 }
 
 const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => {
+  const { theme } = useTheme();
   const [yearFilter, setYearFilter] = useState('All Time');
   const [monthFilter, setMonthFilter] = useState('All Months');
   const [viewMode, setViewMode] = useState<'graph' | 'table'>('graph');
@@ -226,7 +246,11 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
   if (isLoading || watchesLoading) {
     return (
       <div className='flex justify-center items-center h-64'>
-        <div className='w-8 h-8 border-4 border-champagne-gold border-t-transparent rounded-full animate-spin'></div>
+        <div
+          className={`w-8 h-8 border-4 rounded-full animate-spin ${
+            theme === 'light' ? 'border-blue-600 border-t-transparent' : 'border-champagne-gold border-t-transparent'
+          }`}
+        ></div>
       </div>
     );
   }
@@ -234,15 +258,25 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
   if (error || watchesError) {
     return (
       <div className='p-8'>
-        <div className='bg-crimson-red/10 border border-crimson-red/20 rounded-lg p-4 mb-6'>
+        <div
+          className={`border rounded-lg p-4 mb-6 ${
+            theme === 'light' ? 'bg-red-50 border-red-200' : 'bg-crimson-red/10 border-crimson-red/20'
+          }`}
+        >
           <p className='text-crimson-red font-medium'>Error loading metrics data</p>
-          <p className='text-crimson-red/80 text-sm mt-1'>{error || watchesError}</p>
+          <p className={`text-sm mt-1 ${theme === 'light' ? 'text-red-600' : 'text-crimson-red/80'}`}>
+            {error || watchesError}
+          </p>
           <button
             onClick={() => {
               refetch();
               loadWatchData();
             }}
-            className='mt-3 px-4 py-2 bg-crimson-red text-white rounded-lg text-sm hover:bg-red-700'
+            className={`mt-3 px-4 py-2 rounded-lg text-sm transition-colors ${
+              theme === 'light'
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'bg-crimson-red text-white hover:bg-red-700'
+            }`}
           >
             Retry
           </button>
@@ -253,7 +287,11 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
 
   if (soldWatches.length === 0) {
     return (
-      <div className='p-8 border-2 border-dashed border-champagne-gold/20 rounded-lg text-center text-platinum-silver/60'>
+      <div
+        className={`p-8 border-2 border-dashed rounded-lg text-center ${
+          theme === 'light' ? 'border-gray-300 text-gray-600' : 'border-champagne-gold/20 text-platinum-silver/60'
+        }`}
+      >
         No sales data available. Sell a watch to start seeing your metrics.
       </div>
     );
@@ -264,7 +302,9 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
   return (
     <div className='space-y-8'>
       <div>
-        <h2 className='text-2xl font-semibold text-platinum-silver mb-4'>Overall Performance</h2>
+        <h2 className={`text-2xl font-semibold mb-4 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
+          Overall Performance
+        </h2>
         <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
           <StatCard
             icon={<DollarSign size={24} />}
@@ -281,9 +321,15 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
         </div>
       </div>
 
-      <div className='bg-obsidian-black/50 p-6 rounded-xl border border-champagne-gold/10'>
+      <div
+        className={`p-6 rounded-xl border ${
+          theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-obsidian-black/50 border-champagne-gold/10'
+        }`}
+      >
         <div className='flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4'>
-          <h2 className='text-2xl font-semibold text-platinum-silver'>Monthly Profit Tracker</h2>
+          <h2 className={`text-2xl font-semibold ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
+            Monthly Profit Tracker
+          </h2>
           <div className='flex items-center gap-2'>
             <select
               value={yearFilter}
@@ -291,7 +337,11 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
                 setYearFilter(e.target.value);
                 if (e.target.value === 'All Time') setMonthFilter('All Months');
               }}
-              className='bg-charcoal-slate border border-champagne-gold/20 text-platinum-silver rounded-md px-3 py-1.5 text-sm focus:ring-champagne-gold focus:border-champagne-gold'
+              className={`border rounded-md px-3 py-1.5 text-sm transition-colors ${
+                theme === 'light'
+                  ? 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500'
+                  : 'bg-charcoal-slate border-champagne-gold/20 text-platinum-silver focus:ring-champagne-gold focus:border-champagne-gold'
+              }`}
             >
               {years.map((y) => (
                 <option key={y} value={y}>
@@ -303,7 +353,11 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
               value={monthFilter}
               onChange={(e) => setMonthFilter(e.target.value)}
               disabled={yearFilter === 'All Time'}
-              className='bg-charcoal-slate border border-champagne-gold/20 text-platinum-silver rounded-md px-3 py-1.5 text-sm focus:ring-champagne-gold focus:border-champagne-gold disabled:opacity-50'
+              className={`border rounded-md px-3 py-1.5 text-sm transition-colors disabled:opacity-50 ${
+                theme === 'light'
+                  ? 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500'
+                  : 'bg-charcoal-slate border-champagne-gold/20 text-platinum-silver focus:ring-champagne-gold focus:border-champagne-gold'
+              }`}
             >
               {months.map((m) => (
                 <option key={m} value={m}>
@@ -312,16 +366,36 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
               ))}
             </select>
             {!singleMonthView && (
-              <div className='flex items-center bg-charcoal-slate p-1 rounded-md'>
+              <div
+                className={`flex items-center p-1 rounded-md ${
+                  theme === 'light' ? 'bg-white border border-gray-300' : 'bg-charcoal-slate'
+                }`}
+              >
                 <button
                   onClick={() => setViewMode('graph')}
-                  className={`px-2 py-1 text-sm rounded ${viewMode === 'graph' ? 'bg-champagne-gold text-obsidian-black' : 'text-platinum-silver/70 hover:bg-obsidian-black/50'}`}
+                  className={`px-2 py-1 text-sm rounded transition-colors ${
+                    viewMode === 'graph'
+                      ? theme === 'light'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-champagne-gold text-obsidian-black'
+                      : theme === 'light'
+                        ? 'text-gray-600 hover:bg-gray-100'
+                        : 'text-platinum-silver/70 hover:bg-obsidian-black/50'
+                  }`}
                 >
                   <BarChart2 size={16} />
                 </button>
                 <button
                   onClick={() => setViewMode('table')}
-                  className={`px-2 py-1 text-sm rounded ${viewMode === 'table' ? 'bg-champagne-gold text-obsidian-black' : 'text-platinum-silver/70 hover:bg-obsidian-black/50'}`}
+                  className={`px-2 py-1 text-sm rounded transition-colors ${
+                    viewMode === 'table'
+                      ? theme === 'light'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-champagne-gold text-obsidian-black'
+                      : theme === 'light'
+                        ? 'text-gray-600 hover:bg-gray-100'
+                        : 'text-platinum-silver/70 hover:bg-obsidian-black/50'
+                  }`}
                 >
                   <LayoutGrid size={16} />
                 </button>
@@ -337,17 +411,23 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
             exit={{ opacity: 0, y: -10 }}
           >
             {singleMonthView ? (
-              <div className='text-center p-8 bg-charcoal-slate rounded-lg min-h-[250px] flex flex-col justify-center items-center'>
+              <div
+                className={`text-center p-8 rounded-lg min-h-[250px] flex flex-col justify-center items-center ${
+                  theme === 'light' ? 'bg-white border border-gray-200' : 'bg-charcoal-slate'
+                }`}
+              >
                 {filteredData.length > 0 ? (
                   <>
-                    <p className='text-platinum-silver/70'>
+                    <p className={theme === 'light' ? 'text-gray-600' : 'text-platinum-silver/70'}>
                       {monthFilter} {yearFilter} Summary
                     </p>
                     <p className='text-4xl font-bold text-money-green mt-2'>{formatCurrency(filteredData[0].profit)}</p>
-                    <p className='text-platinum-silver/80 mt-1'>from {filteredData[0].count} sale(s)</p>
+                    <p className={`mt-1 ${theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/80'}`}>
+                      from {filteredData[0].count} sale(s)
+                    </p>
                   </>
                 ) : (
-                  <p className='text-platinum-silver/60'>
+                  <p className={theme === 'light' ? 'text-gray-500' : 'text-platinum-silver/60'}>
                     No sales data for {monthFilter} {yearFilter}.
                   </p>
                 )}
@@ -356,6 +436,7 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
               <div className='flex justify-center'>
                 <div className='w-full max-w-2xl'>
                   <LineGraph
+                    theme={theme}
                     data={filteredData.map((d) => ({
                       label: months[parseInt(d.period.substring(5, 7))],
                       value: d.profit,
@@ -366,16 +447,19 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
             ) : (
               <div className='overflow-auto max-h-[300px]'>
                 <table className='w-full text-sm text-left'>
-                  <thead className='text-xs text-champagne-gold uppercase'>
+                  <thead className={`text-xs uppercase ${theme === 'light' ? 'text-gray-700' : 'text-champagne-gold'}`}>
                     <tr>
                       <th className='px-4 py-2'>Month</th>
                       <th className='px-4 py-2 text-right'>Watches Sold</th>
                       <th className='px-4 py-2 text-right'>Net Profit</th>
                     </tr>
                   </thead>
-                  <tbody className='text-platinum-silver/90'>
+                  <tbody className={theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/90'}>
                     {filteredData.map((d) => (
-                      <tr key={d.period} className='border-b border-champagne-gold/10'>
+                      <tr
+                        key={d.period}
+                        className={`border-b ${theme === 'light' ? 'border-gray-200' : 'border-champagne-gold/10'}`}
+                      >
                         <td className='px-4 py-2 font-medium'>
                           {months[parseInt(d.period.substring(5, 7))]} {d.period.substring(0, 4)}
                         </td>
@@ -390,7 +474,11 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
               </div>
             )}
             {filteredData.length === 0 && !singleMonthView && (
-              <div className='h-[250px] flex items-center justify-center text-platinum-silver/60'>
+              <div
+                className={`h-[250px] flex items-center justify-center ${
+                  theme === 'light' ? 'text-gray-500' : 'text-platinum-silver/60'
+                }`}
+              >
                 No sales data for the selected period.
               </div>
             )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Contact, Watch } from '../../../types';
 import { apiService } from '../../../services/apiService';
+import { useTheme } from '../../../hooks/useTheme';
 
 interface InvoiceCreatorProps {
   onCancel: () => void;
@@ -16,6 +17,8 @@ interface InvoiceWatchItem {
 }
 
 const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, error }) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [watches, setWatches] = useState<Watch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -248,7 +251,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
   if (loading) {
     return (
       <div className='flex items-center justify-center py-12'>
-        <div className='text-platinum-silver/60'>Loading form data...</div>
+        <div className={isDark ? 'text-platinum-silver/60' : 'text-gray-500'}>Loading form data...</div>
       </div>
     );
   }
@@ -256,8 +259,15 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
   if (loadingError) {
     return (
       <div className='text-center py-12'>
-        <div className='text-red-400 mb-4'>{loadingError}</div>
-        <button onClick={loadData} className='text-champagne-gold hover:text-champagne-gold/80 transition-colors'>
+        <div className={`mb-4 ${isDark ? 'text-red-400' : 'text-red-600'}`}>{loadingError}</div>
+        <button
+          onClick={loadData}
+          className={
+            isDark
+              ? 'text-champagne-gold hover:text-champagne-gold/80 transition-colors'
+              : 'text-blue-600 hover:text-blue-500 transition-colors'
+          }
+        >
           Try Again
         </button>
       </div>
@@ -269,23 +279,33 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
       <div className='mb-6'>
         <button
           onClick={onCancel}
-          className='text-platinum-silver/60 hover:text-platinum-silver transition-colors mb-4'
+          className={
+            isDark
+              ? 'text-platinum-silver/60 hover:text-platinum-silver transition-colors mb-4'
+              : 'text-gray-500 hover:text-gray-700 transition-colors mb-4'
+          }
         >
           ← Back to Invoices
         </button>
-        <h2 className='text-2xl font-semibold text-platinum-silver'>Create New Invoice</h2>
+        <h2 className={`text-2xl font-semibold ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+          Create New Invoice
+        </h2>
       </div>
 
       {error && (
-        <div className='mb-6 p-4 bg-red-900/20 border border-red-500/30 rounded-lg'>
-          <p className='text-red-400'>{error}</p>
+        <div
+          className={`mb-6 p-4 rounded-lg border ${isDark ? 'bg-red-900/20 border-red-500/30' : 'bg-red-50 border-red-200'}`}
+        >
+          <p className={isDark ? 'text-red-400' : 'text-red-700'}>{error}</p>
         </div>
       )}
 
       <form onSubmit={handleSubmit} className='space-y-6'>
         {/* Customer Selection */}
-        <div className='bg-rich-black/60 rounded-lg p-6'>
-          <h3 className='text-lg font-medium text-platinum-silver mb-4'>Customer Information</h3>
+        <div className={`rounded-lg p-6 ${isDark ? 'bg-rich-black/60' : 'bg-gray-50 border border-gray-200'}`}>
+          <h3 className={`text-lg font-medium mb-4 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+            Customer Information
+          </h3>
 
           {/* Customer Mode Toggle */}
           <div className='mb-6'>
@@ -295,8 +315,12 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                 onClick={() => setCustomerMode('existing')}
                 className={`px-4 py-2 rounded-lg transition-colors ${
                   customerMode === 'existing'
-                    ? 'bg-champagne-gold text-rich-black font-medium'
-                    : 'bg-rich-black border border-platinum-silver/20 text-platinum-silver hover:border-champagne-gold/50'
+                    ? isDark
+                      ? 'bg-champagne-gold text-rich-black font-medium'
+                      : 'bg-blue-600 text-white font-medium'
+                    : isDark
+                      ? 'bg-rich-black border border-platinum-silver/20 text-platinum-silver hover:border-champagne-gold/50'
+                      : 'bg-white border border-gray-300 text-gray-700 hover:border-blue-400'
                 }`}
               >
                 Select Existing Customer
@@ -306,8 +330,12 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                 onClick={() => setCustomerMode('manual')}
                 className={`px-4 py-2 rounded-lg transition-colors ${
                   customerMode === 'manual'
-                    ? 'bg-champagne-gold text-rich-black font-medium'
-                    : 'bg-rich-black border border-platinum-silver/20 text-platinum-silver hover:border-champagne-gold/50'
+                    ? isDark
+                      ? 'bg-champagne-gold text-rich-black font-medium'
+                      : 'bg-blue-600 text-white font-medium'
+                    : isDark
+                      ? 'bg-rich-black border border-platinum-silver/20 text-platinum-silver hover:border-champagne-gold/50'
+                      : 'bg-white border border-gray-300 text-gray-700 hover:border-blue-400'
                 }`}
               >
                 Enter Customer Details
@@ -318,12 +346,20 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
           {/* Existing Customer Selection */}
           {customerMode === 'existing' && (
             <div>
-              <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Select Customer *</label>
+              <label
+                className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+              >
+                Select Customer *
+              </label>
               <select
                 value={selectedContactId}
                 onChange={(e) => setSelectedContactId(e.target.value)}
                 required
-                className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold [&>option]:text-black [&>option]:bg-white'
+                className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none [&>option]:text-black [&>option]:bg-white ${
+                  isDark
+                    ? 'bg-rich-black border border-platinum-silver/20 focus:border-champagne-gold'
+                    : 'bg-white border border-gray-300 focus:border-blue-500'
+                }`}
               >
                 <option value=''>Choose a customer...</option>
                 {contacts.map((contact) => (
@@ -345,34 +381,52 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
             <div className='space-y-4'>
               <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                 <div>
-                  <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>First Name *</label>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    First Name *
+                  </label>
                   <input
                     type='text'
                     value={manualCustomer.firstName}
                     onChange={(e) => updateManualCustomer('firstName', e.target.value)}
                     required
-                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
+                    className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none ${
+                      isDark
+                        ? 'bg-rich-black border border-platinum-silver/20 focus:border-champagne-gold'
+                        : 'bg-white border border-gray-300 focus:border-blue-500'
+                    }`}
                     placeholder='Enter first name'
                   />
                 </div>
                 <div>
-                  <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Last Name *</label>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    Last Name *
+                  </label>
                   <input
                     type='text'
                     value={manualCustomer.lastName}
                     onChange={(e) => updateManualCustomer('lastName', e.target.value)}
                     required
-                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
+                    className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none ${
+                      isDark
+                        ? 'bg-rich-black border border-platinum-silver/20 focus:border-champagne-gold'
+                        : 'bg-white border border-gray-300 focus:border-blue-500'
+                    }`}
                     placeholder='Enter last name'
                   />
                 </div>
               </div>
 
               <div>
-                <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>
+                <label
+                  className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                >
                   Email Address{' '}
                   {(collectionMethod === 'send_invoice' || customerMode === 'manual') && (
-                    <span className='text-red-400'>*</span>
+                    <span className={isDark ? 'text-red-400' : 'text-red-600'}>*</span>
                   )}
                 </label>
                 <input
@@ -380,10 +434,18 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                   value={manualCustomer.email}
                   onChange={(e) => updateManualCustomer('email', e.target.value)}
                   required={collectionMethod === 'send_invoice' || customerMode === 'manual'}
-                  className={`w-full bg-rich-black border rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold ${
-                    collectionMethod === 'send_invoice' && !manualCustomer.email
-                      ? 'border-red-400/50'
-                      : 'border-platinum-silver/20'
+                  className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none ${
+                    isDark
+                      ? `bg-rich-black border focus:border-champagne-gold ${
+                          collectionMethod === 'send_invoice' && !manualCustomer.email
+                            ? 'border-red-400/50'
+                            : 'border-platinum-silver/20'
+                        }`
+                      : `bg-white border focus:border-blue-500 ${
+                          collectionMethod === 'send_invoice' && !manualCustomer.email
+                            ? 'border-red-400'
+                            : 'border-gray-300'
+                        }`
                   }`}
                   placeholder='customer@example.com'
                 />
@@ -393,66 +455,114 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
               </div>
 
               <div>
-                <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Phone Number</label>
+                <label
+                  className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                >
+                  Phone Number
+                </label>
                 <input
                   type='tel'
                   value={manualCustomer.phone}
                   onChange={(e) => updateManualCustomer('phone', e.target.value)}
-                  className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
+                  className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none ${
+                    isDark
+                      ? 'bg-rich-black border border-platinum-silver/20 focus:border-champagne-gold'
+                      : 'bg-white border border-gray-300 focus:border-blue-500'
+                  }`}
                   placeholder='(555) 123-4567'
                 />
               </div>
 
               <div>
-                <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Address</label>
+                <label
+                  className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                >
+                  Address
+                </label>
                 <input
                   type='text'
                   value={manualCustomer.address}
                   onChange={(e) => updateManualCustomer('address', e.target.value)}
-                  className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
+                  className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none ${
+                    isDark
+                      ? 'bg-rich-black border border-platinum-silver/20 focus:border-champagne-gold'
+                      : 'bg-white border border-gray-300 focus:border-blue-500'
+                  }`}
                   placeholder='123 Main Street'
                 />
               </div>
 
               <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
                 <div>
-                  <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>City</label>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    City
+                  </label>
                   <input
                     type='text'
                     value={manualCustomer.city}
                     onChange={(e) => updateManualCustomer('city', e.target.value)}
-                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
+                    className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none ${
+                      isDark
+                        ? 'bg-rich-black border border-platinum-silver/20 focus:border-champagne-gold'
+                        : 'bg-white border border-gray-300 focus:border-blue-500'
+                    }`}
                     placeholder='New York'
                   />
                 </div>
                 <div>
-                  <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>State</label>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    State
+                  </label>
                   <input
                     type='text'
                     value={manualCustomer.state}
                     onChange={(e) => updateManualCustomer('state', e.target.value)}
-                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
+                    className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none ${
+                      isDark
+                        ? 'bg-rich-black border border-platinum-silver/20 focus:border-champagne-gold'
+                        : 'bg-white border border-gray-300 focus:border-blue-500'
+                    }`}
                     placeholder='NY'
                   />
                 </div>
                 <div>
-                  <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>ZIP Code</label>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    ZIP Code
+                  </label>
                   <input
                     type='text'
                     value={manualCustomer.zipCode}
                     onChange={(e) => updateManualCustomer('zipCode', e.target.value)}
-                    className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
+                    className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none ${
+                      isDark
+                        ? 'bg-rich-black border border-platinum-silver/20 focus:border-champagne-gold'
+                        : 'bg-white border border-gray-300 focus:border-blue-500'
+                    }`}
                     placeholder='10001'
                   />
                 </div>
               </div>
 
               <div>
-                <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Country</label>
+                <label
+                  className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                >
+                  Country
+                </label>
                 <select
                   value={manualCustomer.country}
                   onChange={(e) => updateManualCustomer('country', e.target.value)}
-                  className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold [&>option]:text-black [&>option]:bg-white'
+                  className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none ${
+                    isDark
+                      ? 'bg-rich-black border border-platinum-silver/20 focus:border-champagne-gold'
+                      : 'bg-white border border-gray-300 focus:border-blue-500'
+                  } [&>option]:text-black [&>option]:bg-white`}
                 >
                   <option value='US'>United States</option>
                   <option value='CA'>Canada</option>
@@ -471,34 +581,51 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
         </div>
 
         {/* Watch Selection */}
-        <div className='bg-rich-black/60 rounded-lg p-6'>
+        <div className={`rounded-lg p-6 ${isDark ? 'bg-rich-black/60' : 'bg-gray-50 border border-gray-200'}`}>
           <div className='flex justify-between items-center mb-4'>
-            <h3 className='text-lg font-medium text-platinum-silver'>Invoice Items</h3>
+            <h3 className={`text-lg font-medium ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+              Invoice Items
+            </h3>
             <button
               type='button'
               onClick={addWatch}
-              className='bg-champagne-gold hover:bg-champagne-gold/80 text-rich-black font-medium px-4 py-2 rounded-lg transition-colors'
+              className={
+                isDark
+                  ? 'bg-champagne-gold hover:bg-champagne-gold/80 text-rich-black font-medium px-4 py-2 rounded-lg transition-colors'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors'
+              }
             >
               Add Watch
             </button>
           </div>
 
           {selectedWatches.length === 0 ? (
-            <div className='text-platinum-silver/60 text-center py-8'>
+            <div className={`text-center py-8 ${isDark ? 'text-platinum-silver/60' : 'text-gray-500'}`}>
               No watches added. Click "Add Watch" to get started.
             </div>
           ) : (
             <div className='space-y-4'>
               {selectedWatches.map((item, index) => (
-                <div key={index} className='bg-rich-black/40 rounded-lg p-4 border border-platinum-silver/10'>
+                <div
+                  key={index}
+                  className={`rounded-lg p-4 border ${isDark ? 'bg-rich-black/40 border-platinum-silver/10' : 'bg-white border-gray-200'}`}
+                >
                   <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
                     <div className='md:col-span-2'>
-                      <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Watch *</label>
+                      <label
+                        className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                      >
+                        Watch *
+                      </label>
                       <select
                         value={item.watchId}
                         onChange={(e) => updateWatchItem(index, 'watchId', parseInt(e.target.value))}
                         required
-                        className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-3 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold [&>option]:text-black [&>option]:bg-white'
+                        className={`w-full rounded-lg px-3 py-2 focus:outline-none [&>option]:text-black [&>option]:bg-white ${
+                          isDark
+                            ? 'bg-rich-black border border-platinum-silver/20 text-platinum-silver focus:border-champagne-gold'
+                            : 'bg-white border border-gray-300 text-gray-900 focus:border-blue-500'
+                        }`}
                       >
                         <option value={0}>Select a watch...</option>
                         {watches.map((watch) => (
@@ -510,19 +637,31 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                     </div>
 
                     <div>
-                      <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Quantity *</label>
+                      <label
+                        className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                      >
+                        Quantity *
+                      </label>
                       <input
                         type='number'
                         min='1'
                         value={item.quantity}
                         onChange={(e) => updateWatchItem(index, 'quantity', parseInt(e.target.value))}
                         required
-                        className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-3 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                        className={`w-full rounded-lg px-3 py-2 focus:outline-none ${
+                          isDark
+                            ? 'bg-rich-black border border-platinum-silver/20 text-platinum-silver focus:border-champagne-gold'
+                            : 'bg-white border border-gray-300 text-gray-900 focus:border-blue-500'
+                        }`}
                       />
                     </div>
 
                     <div>
-                      <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Price *</label>
+                      <label
+                        className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                      >
+                        Price *
+                      </label>
                       <div className='flex'>
                         <input
                           type='number'
@@ -531,12 +670,16 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                           value={item.price}
                           onChange={(e) => updateWatchItem(index, 'price', parseFloat(e.target.value) || 0)}
                           required
-                          className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-3 py-2 text-platinum-silver focus:outline-none focus:border-champagne-gold'
+                          className={`w-full rounded-lg px-3 py-2 focus:outline-none ${
+                            isDark
+                              ? 'bg-rich-black border border-platinum-silver/20 text-platinum-silver focus:border-champagne-gold'
+                              : 'bg-white border border-gray-300 text-gray-900 focus:border-blue-500'
+                          }`}
                         />
                         <button
                           type='button'
                           onClick={() => removeWatch(index)}
-                          className='ml-2 text-red-400 hover:text-red-300 transition-colors p-2'
+                          className={`ml-2 transition-colors p-2 ${isDark ? 'text-red-400 hover:text-red-300' : 'text-red-600 hover:text-red-500'}`}
                           title='Remove watch'
                         >
                           ×
@@ -551,39 +694,64 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
         </div>
 
         {/* Invoice Details */}
-        <div className='bg-rich-black/60 rounded-lg p-6'>
-          <h3 className='text-lg font-medium text-platinum-silver mb-4'>Invoice Details</h3>
+        <div className={`rounded-lg p-6 ${isDark ? 'bg-rich-black/60' : 'bg-gray-50 border border-gray-200'}`}>
+          <h3 className={`text-lg font-medium mb-4 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+            Invoice Details
+          </h3>
 
           <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
             <div>
-              <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>
-                Due Date {collectionMethod === 'send_invoice' && <span className='text-red-400'>*</span>}
+              <label
+                className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+              >
+                Due Date{' '}
+                {collectionMethod === 'send_invoice' && (
+                  <span className={isDark ? 'text-red-400' : 'text-red-600'}>*</span>
+                )}
               </label>
               <input
                 type='date'
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 required={collectionMethod === 'send_invoice'}
-                className={`w-full bg-rich-black border rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold ${
-                  collectionMethod === 'send_invoice' && !dueDate ? 'border-red-400/50' : 'border-platinum-silver/20'
+                className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none ${
+                  isDark
+                    ? `bg-rich-black border focus:border-champagne-gold ${
+                        collectionMethod === 'send_invoice' && !dueDate
+                          ? 'border-red-400/50'
+                          : 'border-platinum-silver/20'
+                      }`
+                    : `bg-white border focus:border-blue-500 ${
+                        collectionMethod === 'send_invoice' && !dueDate ? 'border-red-400' : 'border-gray-300'
+                      }`
                 }`}
               />
               {collectionMethod === 'send_invoice' && !dueDate && (
-                <p className='text-red-400 text-xs mt-1'>Due date is required when sending invoice to customer</p>
+                <p className={`text-xs mt-1 ${isDark ? 'text-red-400' : 'text-red-600'}`}>
+                  Due date is required when sending invoice to customer
+                </p>
               )}
             </div>
 
             <div>
-              <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Payment Method</label>
+              <label
+                className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+              >
+                Payment Method
+              </label>
               <select
                 value={collectionMethod}
                 onChange={(e) => setCollectionMethod(e.target.value as 'charge_automatically' | 'send_invoice')}
-                className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold [&>option]:text-black [&>option]:bg-white'
+                className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none [&>option]:text-black [&>option]:bg-white ${
+                  isDark
+                    ? 'bg-rich-black border border-platinum-silver/20 focus:border-champagne-gold'
+                    : 'bg-white border border-gray-300 focus:border-blue-500'
+                }`}
               >
                 <option value='charge_automatically'>Charge Immediately (Hosted Payment)</option>
                 <option value='send_invoice'>Send Invoice to Customer</option>
               </select>
-              <p className='text-platinum-silver/60 text-xs mt-1'>
+              <p className={`text-xs mt-1 ${isDark ? 'text-platinum-silver/60' : 'text-gray-900'}`}>
                 {collectionMethod === 'charge_automatically'
                   ? 'Customer can pay immediately via hosted payment page'
                   : 'Invoice will be emailed to customer for later payment'}
@@ -593,7 +761,9 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
 
           <div className='grid grid-cols-1 md:grid-cols-2 gap-6 mt-6'>
             <div>
-              <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Tax Rate (%)</label>
+              <label className={`text-lg font-medium mb-4 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+                Tax Rate (%)
+              </label>
               <input
                 type='number'
                 min='0'
@@ -601,19 +771,29 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                 step='0.01'
                 value={taxRate}
                 onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
-                className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold'
+                className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none resize-vertical ${
+                  isDark
+                    ? 'bg-rich-black border border-platinum-silver/20 focus:border-champagne-gold'
+                    : 'bg-white border border-gray-300 focus:border-blue-500'
+                }`}
                 placeholder='0.00'
               />
             </div>
           </div>
 
           <div className='mt-6'>
-            <label className='block text-platinum-silver/80 text-sm font-medium mb-2'>Notes</label>
+            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}>
+              Notes
+            </label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={4}
-              className='w-full bg-rich-black border border-platinum-silver/20 rounded-lg px-4 py-2 text-black focus:outline-none focus:border-champagne-gold resize-vertical'
+              className={`w-full rounded-lg px-4 py-2 text-black focus:outline-none resize-vertical ${
+                isDark
+                  ? 'bg-rich-black border border-platinum-silver/20 focus:border-champagne-gold'
+                  : 'bg-white border border-gray-300 focus:border-blue-500'
+              }`}
               placeholder='Add any additional notes or terms...'
             />
           </div>
@@ -621,10 +801,12 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
 
         {/* Invoice Summary */}
         {selectedWatches.length > 0 && (
-          <div className='bg-rich-black/60 rounded-lg p-6'>
-            <h3 className='text-lg font-medium text-platinum-silver mb-4'>Invoice Summary</h3>
+          <div className={`rounded-lg p-6 ${isDark ? 'bg-rich-black/60' : 'bg-gray-50 border border-gray-200'}`}>
+            <h3 className={`text-lg font-medium mb-4 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+              Invoice Summary
+            </h3>
 
-            <div className='space-y-2 text-platinum-silver'>
+            <div className={`space-y-2 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
               <div className='flex justify-between'>
                 <span>Subtotal:</span>
                 <span className='font-mono'>${calculateSubtotal().toFixed(2)}</span>
@@ -637,7 +819,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
                 </div>
               )}
 
-              <div className='border-t border-platinum-silver/20 pt-2 mt-2'>
+              <div className={`border-t pt-2 mt-2 ${isDark ? 'border-platinum-silver/20' : 'border-gray-200'}`}>
                 <div className='flex justify-between text-lg font-semibold'>
                   <span>Total:</span>
                   <span className='font-mono'>${calculateTotal().toFixed(2)}</span>
@@ -653,7 +835,7 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
             type='button'
             onClick={onCancel}
             disabled={submitting}
-            className='px-6 py-2 text-platinum-silver/80 hover:text-platinum-silver transition-colors disabled:opacity-50'
+            className={`px-6 py-2 transition-colors disabled:opacity-50 ${isDark ? 'text-platinum-silver/80 hover:text-platinum-silver' : 'text-gray-600 hover:text-gray-800'}`}
           >
             Cancel
           </button>
@@ -667,7 +849,11 @@ const InvoiceCreator: React.FC<InvoiceCreatorProps> = ({ onCancel, onSubmit, err
               (collectionMethod === 'send_invoice' && !dueDate) ||
               (collectionMethod === 'send_invoice' && !hasValidEmail())
             }
-            className='bg-champagne-gold hover:bg-champagne-gold/80 disabled:bg-champagne-gold/50 text-rich-black font-medium px-6 py-2 rounded-lg transition-colors'
+            className={
+              isDark
+                ? 'bg-champagne-gold hover:bg-champagne-gold/80 disabled:bg-champagne-gold/50 text-rich-black font-medium px-6 py-2 rounded-lg transition-colors'
+                : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium px-6 py-2 rounded-lg transition-colors'
+            }
           >
             {submitting ? 'Creating Invoice...' : 'Create Invoice'}
           </button>

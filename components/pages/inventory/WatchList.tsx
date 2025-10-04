@@ -4,6 +4,7 @@ import { Edit2, Users, Trash2, Square, CheckSquare, Trash } from 'lucide-react';
 import { Watch } from '../../../types';
 import SetBadge from './preview/SetBadge';
 import NotesPreview from './preview/NotesPreview';
+import { useTheme } from '../../../hooks/useTheme';
 
 interface WatchListProps {
   watches: (Watch & { totalIn?: number; netProfit?: number; profitPercentage?: number; holdTime?: string })[];
@@ -19,6 +20,7 @@ const formatCurrency = (value?: number) => {
 };
 
 const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociations, onDelete, onBulkDelete }) => {
+  const { theme } = useTheme();
   const [selectedWatches, setSelectedWatches] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
 
@@ -60,7 +62,11 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
 
   if (watches.length === 0) {
     return (
-      <div className='p-8 border-2 border-dashed border-champagne-gold/20 rounded-lg text-center text-platinum-silver/60'>
+      <div
+        className={`p-8 border-2 border-dashed rounded-lg text-center ${
+          theme === 'light' ? 'border-blue-600/20 text-gray-600' : 'border-champagne-gold/20 text-platinum-silver/60'
+        }`}
+      >
         You have no watches in your inventory. Click "Add New Watch" to get started.
       </div>
     );
@@ -85,22 +91,34 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
   ];
 
   return (
-    <div className='bg-charcoal-slate rounded-xl overflow-hidden border border-champagne-gold/10'>
+    <div
+      className={`rounded-xl overflow-hidden border ${
+        theme === 'light' ? 'bg-white border-gray-300' : 'bg-charcoal-slate border-champagne-gold/10'
+      }`}
+    >
       {/* Bulk Actions Bar */}
       {isSelectMode && (
-        <div className='bg-obsidian-black/50 px-6 py-4 border-b border-champagne-gold/10'>
+        <div
+          className={`px-6 py-4 border-b ${
+            theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-obsidian-black/50 border-champagne-gold/10'
+          }`}
+        >
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-4'>
               <button
                 onClick={toggleSelectAll}
-                className='flex items-center gap-2 text-champagne-gold hover:text-champagne-gold/80 transition-colors'
+                className={`flex items-center gap-2 transition-colors ${
+                  theme === 'light'
+                    ? 'text-blue-600 hover:text-blue-700'
+                    : 'text-champagne-gold hover:text-champagne-gold/80'
+                }`}
               >
                 {selectedWatches.size === watches.length ? <CheckSquare size={20} /> : <Square size={20} />}
                 <span className='text-sm'>
                   {selectedWatches.size === watches.length ? 'Deselect All' : 'Select All'}
                 </span>
               </button>
-              <span className='text-platinum-silver/60 text-sm'>
+              <span className={`text-sm ${theme === 'light' ? 'text-gray-600' : 'text-platinum-silver/60'}`}>
                 {selectedWatches.size} of {watches.length} selected
               </span>
             </div>
@@ -116,7 +134,11 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
               )}
               <button
                 onClick={toggleSelectMode}
-                className='text-platinum-silver/60 hover:text-platinum-silver text-sm px-3 py-2 rounded-lg hover:bg-charcoal-slate/50 transition-colors'
+                className={`text-sm px-3 py-2 rounded-lg transition-colors ${
+                  theme === 'light'
+                    ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    : 'text-platinum-silver/60 hover:text-platinum-silver hover:bg-charcoal-slate/50'
+                }`}
               >
                 Cancel
               </button>
@@ -127,10 +149,18 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
 
       {/* Selection Toggle Button */}
       {!isSelectMode && (
-        <div className='bg-obsidian-black/30 px-6 py-3 border-b border-champagne-gold/10'>
+        <div
+          className={`px-6 py-3 border-b ${
+            theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-obsidian-black/30 border-champagne-gold/10'
+          }`}
+        >
           <button
             onClick={toggleSelectMode}
-            className='flex items-center gap-2 text-champagne-gold hover:text-champagne-gold/80 transition-colors text-sm'
+            className={`flex items-center gap-2 transition-colors text-sm ${
+              theme === 'light'
+                ? 'text-blue-600 hover:text-blue-700'
+                : 'text-champagne-gold hover:text-champagne-gold/80'
+            }`}
           >
             <Square size={16} />
             Select Multiple
@@ -139,15 +169,25 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
       )}
 
       <div className='overflow-x-auto'>
-        <table className='w-full text-sm text-left text-platinum-silver/80'>
-          <thead className='text-xs text-champagne-gold uppercase bg-obsidian-black/50'>
+        <table
+          className={`w-full text-sm text-left ${theme === 'light' ? 'text-gray-800' : 'text-platinum-silver/80'}`}
+        >
+          <thead
+            className={`text-xs uppercase ${
+              theme === 'light' ? 'text-blue-600 bg-gray-100' : 'text-champagne-gold bg-obsidian-black/50'
+            }`}
+          >
             <tr>
               {headers.map((header) => (
                 <th key={header} scope='col' className='px-6 py-3 whitespace-nowrap'>
                   {header === 'Select' && isSelectMode ? (
                     <button
                       onClick={toggleSelectAll}
-                      className='flex items-center text-champagne-gold hover:text-champagne-gold/80'
+                      className={`flex items-center transition-colors ${
+                        theme === 'light'
+                          ? 'text-blue-600 hover:text-blue-700'
+                          : 'text-champagne-gold hover:text-champagne-gold/80'
+                      }`}
                     >
                       {selectedWatches.size === watches.length ? <CheckSquare size={16} /> : <Square size={16} />}
                     </button>
@@ -162,8 +202,12 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
             {watches.map((watch) => (
               <motion.tr
                 key={watch.id}
-                className={`border-b border-champagne-gold/10 hover:bg-obsidian-black/30 transition-colors ${
-                  selectedWatches.has(watch.id) ? 'bg-champagne-gold/10' : ''
+                className={`border-b transition-colors ${
+                  theme === 'light'
+                    ? `border-gray-200 hover:bg-gray-50 ${selectedWatches.has(watch.id) ? 'bg-blue-50' : ''}`
+                    : `border-champagne-gold/10 hover:bg-obsidian-black/30 ${
+                        selectedWatches.has(watch.id) ? 'bg-champagne-gold/10' : ''
+                      }`
                 }`}
                 variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }}
               >
@@ -171,14 +215,24 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
                   <td className='px-6 py-4'>
                     <button
                       onClick={() => toggleSelectWatch(watch.id)}
-                      className='text-champagne-gold hover:text-champagne-gold/80 transition-colors'
+                      className={`transition-colors ${
+                        theme === 'light'
+                          ? 'text-blue-600 hover:text-blue-700'
+                          : 'text-champagne-gold hover:text-champagne-gold/80'
+                      }`}
                     >
                       {selectedWatches.has(watch.id) ? <CheckSquare size={16} /> : <Square size={16} />}
                     </button>
                   </td>
                 )}
                 <td className='px-6 py-4 whitespace-nowrap'>{watch.inDate || '-'}</td>
-                <td className='px-6 py-4 font-semibold text-platinum-silver whitespace-nowrap'>{watch.brand}</td>
+                <td
+                  className={`px-6 py-4 font-semibold whitespace-nowrap ${
+                    theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'
+                  }`}
+                >
+                  {watch.brand}
+                </td>
                 <td className='px-6 py-4 whitespace-nowrap'>{watch.model}</td>
                 <td className='px-6 py-4 whitespace-nowrap'>{watch.referenceNumber}</td>
                 <td className='px-6 py-4'>
@@ -188,7 +242,11 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
                   <NotesPreview notes={watch.notes} />
                 </td>
                 <td className='px-6 py-4 whitespace-nowrap'>{formatCurrency(watch.purchasePrice)}</td>
-                <td className='px-6 py-4 font-medium text-champagne-gold whitespace-nowrap'>
+                <td
+                  className={`px-6 py-4 font-medium whitespace-nowrap ${
+                    theme === 'light' ? 'text-blue-600' : 'text-champagne-gold'
+                  }`}
+                >
                   {formatCurrency(watch.totalIn)}
                 </td>
                 <td className='px-6 py-4 whitespace-nowrap'>{watch.dateSold || '-'}</td>
@@ -209,7 +267,11 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
                     {(watch.buyerContactId || watch.sellerContactId) && (
                       <button
                         onClick={() => onShowAssociations(watch)}
-                        className='p-1.5 rounded-md hover:bg-champagne-gold/20 text-champagne-gold transition-colors'
+                        className={`p-1.5 rounded-md transition-colors ${
+                          theme === 'light'
+                            ? 'hover:bg-blue-100 text-blue-600'
+                            : 'hover:bg-champagne-gold/20 text-champagne-gold'
+                        }`}
                         aria-label='View Associations'
                         title='View Associations'
                       >
@@ -218,7 +280,11 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
                     )}
                     <button
                       onClick={() => onEdit(watch)}
-                      className='p-1.5 rounded-md hover:bg-champagne-gold/20 text-champagne-gold transition-colors'
+                      className={`p-1.5 rounded-md transition-colors ${
+                        theme === 'light'
+                          ? 'hover:bg-blue-100 text-blue-600'
+                          : 'hover:bg-champagne-gold/20 text-champagne-gold'
+                      }`}
                       aria-label='Edit Watch'
                       title='Edit Watch'
                     >

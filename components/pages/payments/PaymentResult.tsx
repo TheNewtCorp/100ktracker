@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTheme } from '../../../hooks/useTheme';
 
 interface PaymentResultProps {
   onBack: () => void;
 }
 
 const PaymentResult: React.FC<PaymentResultProps> = ({ onBack }) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -92,10 +95,18 @@ const PaymentResult: React.FC<PaymentResultProps> = ({ onBack }) => {
   if (loading) {
     return (
       <div className='max-w-2xl mx-auto'>
-        <div className='bg-rich-black/60 rounded-lg p-8 text-center'>
-          <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-champagne-gold mx-auto mb-4'></div>
-          <h2 className='text-xl font-semibold text-platinum-silver mb-2'>Processing Payment Result</h2>
-          <p className='text-platinum-silver/60'>Please wait while we confirm your payment status...</p>
+        <div
+          className={`rounded-lg p-8 text-center ${isDark ? 'bg-rich-black/60' : 'bg-gray-50 border border-gray-200'}`}
+        >
+          <div
+            className={`animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4 ${isDark ? 'border-champagne-gold' : 'border-blue-600'}`}
+          ></div>
+          <h2 className={`text-xl font-semibold mb-2 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+            Processing Payment Result
+          </h2>
+          <p className={isDark ? 'text-platinum-silver/60' : 'text-gray-600'}>
+            Please wait while we confirm your payment status...
+          </p>
         </div>
       </div>
     );
@@ -104,13 +115,19 @@ const PaymentResult: React.FC<PaymentResultProps> = ({ onBack }) => {
   if (error) {
     return (
       <div className='max-w-2xl mx-auto'>
-        <div className='bg-rich-black/60 rounded-lg p-8 text-center'>
-          <div className='text-red-400 text-4xl mb-4'>⚠️</div>
-          <h2 className='text-xl font-semibold text-platinum-silver mb-2'>Error</h2>
-          <p className='text-platinum-silver/80 mb-6'>{error}</p>
+        <div
+          className={`rounded-lg p-8 text-center ${isDark ? 'bg-rich-black/60' : 'bg-gray-50 border border-gray-200'}`}
+        >
+          <div className={`text-4xl mb-4 ${isDark ? 'text-red-400' : 'text-red-600'}`}>⚠️</div>
+          <h2 className={`text-xl font-semibold mb-2 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>Error</h2>
+          <p className={`mb-6 ${isDark ? 'text-platinum-silver/80' : 'text-gray-600'}`}>{error}</p>
           <button
             onClick={onBack}
-            className='bg-champagne-gold hover:bg-champagne-gold/80 text-rich-black font-medium px-6 py-2 rounded-lg transition-colors'
+            className={
+              isDark
+                ? 'bg-champagne-gold hover:bg-champagne-gold/80 text-rich-black font-medium px-6 py-2 rounded-lg transition-colors'
+                : 'bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-lg transition-colors'
+            }
           >
             Return to Invoices
           </button>
@@ -135,13 +152,13 @@ const PaymentResult: React.FC<PaymentResultProps> = ({ onBack }) => {
   const getStatusColor = () => {
     switch (paymentStatus) {
       case 'success':
-        return 'text-green-400';
+        return isDark ? 'text-green-400' : 'text-green-600';
       case 'failed':
-        return 'text-red-400';
+        return isDark ? 'text-red-400' : 'text-red-600';
       case 'processing':
-        return 'text-yellow-400';
+        return isDark ? 'text-yellow-400' : 'text-yellow-600';
       default:
-        return 'text-platinum-silver';
+        return isDark ? 'text-platinum-silver' : 'text-gray-600';
     }
   };
 
@@ -173,37 +190,41 @@ const PaymentResult: React.FC<PaymentResultProps> = ({ onBack }) => {
 
   return (
     <div className='max-w-2xl mx-auto'>
-      <div className='bg-rich-black/60 rounded-lg p-8'>
+      <div className={`rounded-lg p-8 ${isDark ? 'bg-rich-black/60' : 'bg-gray-50 border border-gray-200'}`}>
         <div className='text-center mb-8'>
           <div className='text-6xl mb-4'>{getStatusIcon()}</div>
           <h2 className={`text-2xl font-semibold mb-2 ${getStatusColor()}`}>{getStatusTitle()}</h2>
-          <p className='text-platinum-silver/80 text-lg'>{getStatusMessage()}</p>
+          <p className={`text-lg ${isDark ? 'text-platinum-silver/80' : 'text-gray-600'}`}>{getStatusMessage()}</p>
         </div>
 
         {invoiceDetails && (
-          <div className='bg-rich-black/40 rounded-lg p-6 mb-6'>
-            <h3 className='text-lg font-medium text-platinum-silver mb-4'>Invoice Details</h3>
+          <div className={`rounded-lg p-6 mb-6 ${isDark ? 'bg-rich-black/40' : 'bg-white border border-gray-200'}`}>
+            <h3 className={`text-lg font-medium mb-4 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+              Invoice Details
+            </h3>
             <div className='space-y-3'>
               <div className='flex justify-between'>
-                <span className='text-platinum-silver/60'>Invoice ID:</span>
-                <span className='text-platinum-silver font-mono'>{invoiceDetails.id}</span>
+                <span className={isDark ? 'text-platinum-silver/60' : 'text-gray-600'}>Invoice ID:</span>
+                <span className={`font-mono ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+                  {invoiceDetails.id}
+                </span>
               </div>
               <div className='flex justify-between'>
-                <span className='text-platinum-silver/60'>Amount:</span>
-                <span className='text-platinum-silver font-mono'>
+                <span className={isDark ? 'text-platinum-silver/60' : 'text-gray-600'}>Amount:</span>
+                <span className={`font-mono ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
                   {formatCurrency(invoiceDetails.amount_due || invoiceDetails.total, invoiceDetails.currency)}
                 </span>
               </div>
               <div className='flex justify-between'>
-                <span className='text-platinum-silver/60'>Status:</span>
+                <span className={isDark ? 'text-platinum-silver/60' : 'text-gray-600'}>Status:</span>
                 <span className={`font-medium ${getStatusColor()}`}>
                   {invoiceDetails.status.charAt(0).toUpperCase() + invoiceDetails.status.slice(1)}
                 </span>
               </div>
               {invoiceDetails.customer && (
                 <div className='flex justify-between'>
-                  <span className='text-platinum-silver/60'>Customer:</span>
-                  <span className='text-platinum-silver'>
+                  <span className={isDark ? 'text-platinum-silver/60' : 'text-gray-600'}>Customer:</span>
+                  <span className={isDark ? 'text-platinum-silver' : 'text-gray-900'}>
                     {invoiceDetails.customer.name || invoiceDetails.customer.email}
                   </span>
                 </div>
@@ -215,7 +236,11 @@ const PaymentResult: React.FC<PaymentResultProps> = ({ onBack }) => {
         <div className='flex flex-col sm:flex-row gap-4 justify-center'>
           <button
             onClick={onBack}
-            className='bg-champagne-gold hover:bg-champagne-gold/80 text-rich-black font-medium px-6 py-3 rounded-lg transition-colors'
+            className={
+              isDark
+                ? 'bg-champagne-gold hover:bg-champagne-gold/80 text-rich-black font-medium px-6 py-3 rounded-lg transition-colors'
+                : 'bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-lg transition-colors'
+            }
           >
             Return to Invoices
           </button>
@@ -223,7 +248,11 @@ const PaymentResult: React.FC<PaymentResultProps> = ({ onBack }) => {
           {paymentStatus === 'failed' && invoiceDetails?.hosted_invoice_url && (
             <button
               onClick={() => window.open(invoiceDetails.hosted_invoice_url, '_blank')}
-              className='bg-rich-black border border-champagne-gold text-champagne-gold hover:bg-champagne-gold hover:text-rich-black font-medium px-6 py-3 rounded-lg transition-colors'
+              className={
+                isDark
+                  ? 'bg-rich-black border border-champagne-gold text-champagne-gold hover:bg-champagne-gold hover:text-rich-black font-medium px-6 py-3 rounded-lg transition-colors'
+                  : 'bg-white border border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white font-medium px-6 py-3 rounded-lg transition-colors'
+              }
             >
               Try Payment Again
             </button>
@@ -232,7 +261,11 @@ const PaymentResult: React.FC<PaymentResultProps> = ({ onBack }) => {
           {paymentStatus === 'success' && invoiceDetails?.invoice_pdf && (
             <button
               onClick={() => window.open(invoiceDetails.invoice_pdf, '_blank')}
-              className='bg-rich-black border border-champagne-gold text-champagne-gold hover:bg-champagne-gold hover:text-rich-black font-medium px-6 py-3 rounded-lg transition-colors'
+              className={
+                isDark
+                  ? 'bg-rich-black border border-champagne-gold text-champagne-gold hover:bg-champagne-gold hover:text-rich-black font-medium px-6 py-3 rounded-lg transition-colors'
+                  : 'bg-white border border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white font-medium px-6 py-3 rounded-lg transition-colors'
+              }
             >
               Download Receipt
             </button>
@@ -240,8 +273,10 @@ const PaymentResult: React.FC<PaymentResultProps> = ({ onBack }) => {
         </div>
 
         {paymentStatus === 'processing' && (
-          <div className='mt-6 p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-lg'>
-            <p className='text-yellow-400 text-sm text-center'>
+          <div
+            className={`mt-6 p-4 rounded-lg border ${isDark ? 'bg-yellow-900/20 border-yellow-500/30' : 'bg-yellow-50 border-yellow-200'}`}
+          >
+            <p className={`text-sm text-center ${isDark ? 'text-yellow-400' : 'text-yellow-700'}`}>
               <strong>Note:</strong> If your payment is still processing after 10 minutes, please contact support.
             </p>
           </div>

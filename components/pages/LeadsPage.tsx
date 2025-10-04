@@ -5,6 +5,7 @@ import { Lead, LeadStatus, Contact, ContactType } from '../../types';
 import LeadColumn from './leads/LeadColumn';
 import LeadFormModal from './leads/LeadFormModal';
 import ConfirmDeleteLeadModal from './leads/ConfirmDeleteLeadModal';
+import { useTheme } from '../../hooks/useTheme';
 import apiService from '../../services/apiService';
 
 const statusOrder: LeadStatus[] = [
@@ -23,6 +24,7 @@ interface LeadsPageProps {
 }
 
 const LeadsPage: React.FC<LeadsPageProps> = ({ onLeadsUpdate, initialLeadId }) => {
+  const { theme } = useTheme();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -227,7 +229,11 @@ const LeadsPage: React.FC<LeadsPageProps> = ({ onLeadsUpdate, initialLeadId }) =
   if (isLoading) {
     return (
       <div className='flex justify-center items-center p-8'>
-        <div className='w-8 h-8 border-4 border-champagne-gold border-t-transparent rounded-full animate-spin'></div>
+        <div
+          className={`w-8 h-8 border-4 rounded-full animate-spin ${
+            theme === 'light' ? 'border-blue-600 border-t-transparent' : 'border-champagne-gold border-t-transparent'
+          }`}
+        ></div>
       </div>
     );
   }
@@ -235,12 +241,20 @@ const LeadsPage: React.FC<LeadsPageProps> = ({ onLeadsUpdate, initialLeadId }) =
   if (error) {
     return (
       <div className='p-8'>
-        <div className='bg-crimson-red/10 border border-crimson-red/20 rounded-lg p-4 mb-6'>
+        <div
+          className={`border rounded-lg p-4 mb-6 ${
+            theme === 'light' ? 'bg-red-50 border-red-200' : 'bg-crimson-red/10 border-crimson-red/20'
+          }`}
+        >
           <p className='text-crimson-red font-medium'>Error loading leads</p>
-          <p className='text-crimson-red/80 text-sm mt-1'>{error}</p>
+          <p className={`text-sm mt-1 ${theme === 'light' ? 'text-red-600' : 'text-crimson-red/80'}`}>{error}</p>
           <button
             onClick={loadData}
-            className='mt-3 px-4 py-2 bg-crimson-red text-white rounded-lg text-sm hover:bg-red-700'
+            className={`mt-3 px-4 py-2 rounded-lg text-sm transition-colors ${
+              theme === 'light'
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'bg-crimson-red text-white hover:bg-red-700'
+            }`}
           >
             Retry
           </button>
@@ -252,10 +266,16 @@ const LeadsPage: React.FC<LeadsPageProps> = ({ onLeadsUpdate, initialLeadId }) =
   return (
     <div>
       <div className='flex justify-between items-center mb-6'>
-        <p className='text-platinum-silver/80'>Track and manage your watch acquisition and sales leads.</p>
+        <p className={theme === 'light' ? 'text-gray-600' : 'text-platinum-silver/80'}>
+          Track and manage your watch acquisition and sales leads.
+        </p>
         <button
           onClick={handleAddNew}
-          className='flex items-center gap-2 bg-champagne-gold text-obsidian-black font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all duration-300'
+          className={`flex items-center gap-2 font-bold py-2 px-4 rounded-lg transition-all duration-300 ${
+            theme === 'light'
+              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-champagne-gold text-obsidian-black hover:bg-opacity-90'
+          }`}
         >
           <Plus size={20} />
           Add New Lead

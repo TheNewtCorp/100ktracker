@@ -5,10 +5,12 @@ import InvoiceDetails from './payments/InvoiceDetails';
 import PaymentResult from './payments/PaymentResult';
 import { Invoice, InvoiceItem } from '../../types';
 import { apiService } from '../../services/apiService';
+import { useTheme } from '../../hooks/useTheme';
 
 interface PaymentsPageProps {}
 
 const PaymentsPage: React.FC<PaymentsPageProps> = () => {
+  const { theme } = useTheme();
   const [currentView, setCurrentView] = useState<'list' | 'create' | 'details' | 'payment-result'>('list');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -116,7 +118,7 @@ const PaymentsPage: React.FC<PaymentsPageProps> = () => {
             error={error}
           />
         ) : (
-          <div className='text-platinum-silver/60'>Invoice not found</div>
+          <div className={theme === 'light' ? 'text-gray-500' : 'text-platinum-silver/60'}>Invoice not found</div>
         );
 
       case 'payment-result':
@@ -152,14 +154,22 @@ const PaymentsPage: React.FC<PaymentsPageProps> = () => {
     <div className='max-w-7xl mx-auto'>
       {/* Header */}
       <div className='mb-6'>
-        <h1 className='text-2xl font-bold text-platinum-silver mb-2'>Invoice Management</h1>
-        <p className='text-platinum-silver/80'>Create and manage customer invoices using Stripe integration.</p>
+        <h1 className={`text-2xl font-bold mb-2 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
+          Invoice Management
+        </h1>
+        <p className={theme === 'light' ? 'text-gray-600' : 'text-platinum-silver/80'}>
+          Create and manage customer invoices using Stripe integration.
+        </p>
       </div>
 
       {/* Error Display */}
       {error && currentView !== 'create' && currentView !== 'details' && (
-        <div className='mb-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg'>
-          <p className='text-red-400'>{error}</p>
+        <div
+          className={`mb-4 p-4 border rounded-lg ${
+            theme === 'light' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-900/20 border-red-500/30 text-red-400'
+          }`}
+        >
+          <p>{error}</p>
         </div>
       )}
 

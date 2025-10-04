@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, RotateCcw, ArrowUpDown } from 'lucide-react';
 import { SortOption, SORT_OPTIONS } from '../../../../hooks/useInventorySort';
+import { useTheme } from '../../../../hooks/useTheme';
 
 interface SortDropdownProps {
   sortOption: SortOption;
@@ -10,6 +11,7 @@ interface SortDropdownProps {
 }
 
 const SortDropdown: React.FC<SortDropdownProps> = ({ sortOption, onSortChange, onClearSort, className = '' }) => {
+  const { theme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -38,15 +40,21 @@ const SortDropdown: React.FC<SortDropdownProps> = ({ sortOption, onSortChange, o
         {/* Sort Dropdown Button */}
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className='flex items-center gap-2 px-4 py-2 bg-charcoal-slate border border-champagne-gold/20 rounded-lg text-platinum-silver hover:border-champagne-gold/50 transition-all duration-200 min-w-[200px] justify-between'
+          className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-all duration-200 min-w-[200px] justify-between ${
+            theme === 'light'
+              ? 'bg-white border-gray-300 text-gray-900 hover:border-blue-500'
+              : 'bg-charcoal-slate border-champagne-gold/20 text-platinum-silver hover:border-champagne-gold/50'
+          }`}
         >
           <div className='flex items-center gap-2'>
-            <ArrowUpDown size={16} className='text-champagne-gold/60' />
+            <ArrowUpDown size={16} className={`${theme === 'light' ? 'text-blue-600/60' : 'text-champagne-gold/60'}`} />
             <span className='text-sm'>{isDefaultSort ? 'Sort by...' : sortOption.label}</span>
           </div>
           <ChevronDown
             size={16}
-            className={`text-champagne-gold/60 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+            className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${
+              theme === 'light' ? 'text-blue-600/60' : 'text-champagne-gold/60'
+            }`}
           />
         </button>
 
@@ -54,7 +62,11 @@ const SortDropdown: React.FC<SortDropdownProps> = ({ sortOption, onSortChange, o
         {!isDefaultSort && (
           <button
             onClick={onClearSort}
-            className='p-2 text-champagne-gold/60 hover:text-champagne-gold hover:bg-champagne-gold/10 rounded-lg transition-all duration-200'
+            className={`p-2 rounded-lg transition-all duration-200 ${
+              theme === 'light'
+                ? 'text-blue-600/60 hover:text-blue-600 hover:bg-blue-100'
+                : 'text-champagne-gold/60 hover:text-champagne-gold hover:bg-champagne-gold/10'
+            }`}
             title='Clear sort'
             aria-label='Clear sort'
           >
@@ -65,7 +77,11 @@ const SortDropdown: React.FC<SortDropdownProps> = ({ sortOption, onSortChange, o
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className='absolute top-full left-0 mt-1 w-full bg-obsidian-black border border-champagne-gold/20 rounded-lg shadow-xl z-50 max-h-80 overflow-y-auto'>
+        <div
+          className={`absolute top-full left-0 mt-1 w-full border rounded-lg shadow-xl z-50 max-h-80 overflow-y-auto ${
+            theme === 'light' ? 'bg-white border-gray-300' : 'bg-obsidian-black border-champagne-gold/20'
+          }`}
+        >
           <div className='py-2'>
             {SORT_OPTIONS.map((option) => (
               <button
@@ -73,13 +89,21 @@ const SortDropdown: React.FC<SortDropdownProps> = ({ sortOption, onSortChange, o
                 onClick={() => handleSortSelect(option)}
                 className={`w-full px-4 py-2 text-left text-sm transition-colors duration-150 ${
                   option.key === sortOption.key
-                    ? 'bg-champagne-gold/20 text-champagne-gold'
-                    : 'text-platinum-silver hover:bg-champagne-gold/10 hover:text-champagne-gold'
+                    ? theme === 'light'
+                      ? 'bg-blue-100 text-blue-600'
+                      : 'bg-champagne-gold/20 text-champagne-gold'
+                    : theme === 'light'
+                      ? 'text-gray-700 hover:bg-gray-100 hover:text-blue-600'
+                      : 'text-platinum-silver hover:bg-champagne-gold/10 hover:text-champagne-gold'
                 }`}
               >
                 <div className='flex items-center justify-between'>
                   <span>{option.label}</span>
-                  {option.key === sortOption.key && <div className='w-2 h-2 bg-champagne-gold rounded-full'></div>}
+                  {option.key === sortOption.key && (
+                    <div
+                      className={`w-2 h-2 rounded-full ${theme === 'light' ? 'bg-blue-600' : 'bg-champagne-gold'}`}
+                    ></div>
+                  )}
                 </div>
               </button>
             ))}

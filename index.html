@@ -1,44 +1,75 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>100KTracker</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            'obsidian-black': '#0E0E0E',
-            'charcoal-slate': '#1C1F24',
-            'champagne-gold': '#C8A97E',
-            'platinum-silver': '#E6E6E6',
-            'money-green': '#4CAF50',
-            'crimson-red': '#E74C3C',
-            'deep-bordeaux': '#5C2E35',
-            'arctic-blue': '#3A6073',
-          }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>100KTracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              // Existing dark theme colors (preserved exactly)
+              'obsidian-black': '#0E0E0E',
+              'charcoal-slate': '#1C1F24',
+              'champagne-gold': '#C8A97E',
+              'platinum-silver': '#E6E6E6',
+              'money-green': '#4CAF50',
+              'crimson-red': '#E74C3C',
+              'deep-bordeaux': '#5C2E35',
+              'arctic-blue': '#3A6073',
+
+              // Additional light theme colors
+              'light-primary': '#FFFFFF',
+              'light-secondary': '#F9FAFB',
+              'light-tertiary': '#F3F4F6',
+              'light-accent': '#2563EB',
+              'light-success': '#16A34A',
+              'light-border': '#E5E7EB',
+            },
+          },
+        },
+        // Add theme-aware CSS custom properties
+        plugins: [
+          function ({ addBase }) {
+            addBase({
+              ':root': {
+                '--theme-primary-bg': '#0E0E0E',
+                '--theme-secondary-bg': '#1C1F24',
+                '--theme-text-primary': '#E6E6E6',
+                '--theme-text-secondary': '#E6E6E6CC',
+                '--theme-accent': '#C8A97E',
+                '--theme-border': '#C8A97E33',
+              },
+              '.light-theme': {
+                '--theme-primary-bg': '#FFFFFF',
+                '--theme-secondary-bg': '#F9FAFB',
+                '--theme-text-primary': '#111827',
+                '--theme-text-secondary': '#4B5563',
+                '--theme-accent': '#2563EB',
+                '--theme-border': '#E5E7EB',
+              },
+            });
+          },
+        ],
+      };
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+          "react/": "https://aistudiocdn.com/react@^19.1.1/",
+          "react": "https://aistudiocdn.com/react@^19.1.1",
+          "lucide-react": "https://aistudiocdn.com/lucide-react@^0.541.0",
+          "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.12"
         }
       }
-    }
-  </script>
-<script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "react/": "https://aistudiocdn.com/react@^19.1.1/",
-    "react": "https://aistudiocdn.com/react@^19.1.1",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.541.0",
-    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.12"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
-<body class="bg-obsidian-black">
-  <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    </script>
+    <link rel="stylesheet" href="/index.css" />
+  </head>
+  <body class="bg-obsidian-black">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>

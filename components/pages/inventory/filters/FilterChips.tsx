@@ -1,6 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { FilterState } from '../../../../hooks/useInventoryFilters';
+import { useTheme } from '../../../../hooks/useTheme';
 
 interface FilterChip {
   key: string;
@@ -17,6 +18,7 @@ interface FilterChipsProps {
 }
 
 const FilterChips: React.FC<FilterChipsProps> = ({ filterState, onRemoveFilter, onClearAll, className = '' }) => {
+  const { theme } = useTheme();
   const chips: FilterChip[] = [];
 
   // Brand chips
@@ -121,18 +123,28 @@ const FilterChips: React.FC<FilterChipsProps> = ({ filterState, onRemoveFilter, 
 
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className}`}>
-      <span className='text-xs text-platinum-silver/60 uppercase tracking-wide'>Active Filters:</span>
+      <span
+        className={`text-xs uppercase tracking-wide ${theme === 'light' ? 'text-gray-500' : 'text-platinum-silver/60'}`}
+      >
+        Active Filters:
+      </span>
 
       {chips.map((chip) => (
         <div
           key={chip.key}
-          className='inline-flex items-center gap-1 px-2 py-1 bg-champagne-gold/20 text-champagne-gold text-xs rounded-full border border-champagne-gold/30'
+          className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full border ${
+            theme === 'light'
+              ? 'bg-blue-100 text-blue-700 border-blue-300'
+              : 'bg-champagne-gold/20 text-champagne-gold border-champagne-gold/30'
+          }`}
         >
           <span className='font-medium'>{chip.label}:</span>
           <span>{chip.value}</span>
           <button
             onClick={chip.onRemove}
-            className='ml-1 hover:bg-champagne-gold/30 rounded-full p-0.5 transition-colors'
+            className={`ml-1 rounded-full p-0.5 transition-colors ${
+              theme === 'light' ? 'hover:bg-blue-200' : 'hover:bg-champagne-gold/30'
+            }`}
             aria-label={`Remove ${chip.label} filter`}
           >
             <X size={10} />

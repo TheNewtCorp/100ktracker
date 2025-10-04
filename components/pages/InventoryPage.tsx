@@ -15,12 +15,14 @@ import apiService from '../../services/apiService';
 import { useInventorySearch } from '../../hooks/useInventorySearch';
 import { useInventorySort } from '../../hooks/useInventorySort';
 import { useInventoryFilters } from '../../hooks/useInventoryFilters';
+import { useTheme } from '../../hooks/useTheme';
 
 interface InventoryPageProps {
   onInventoryUpdate?: () => void; // Callback to notify when inventory changes
 }
 
 const InventoryPage: React.FC<InventoryPageProps> = ({ onInventoryUpdate }) => {
+  const { theme } = useTheme();
   const [watches, setWatches] = useState<Watch[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -414,16 +416,28 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onInventoryUpdate }) => {
 
   if (isLoading) {
     return (
-      <div className='flex justify-center items-center p-8'>
-        <div className='w-8 h-8 border-4 border-champagne-gold border-t-transparent rounded-full animate-spin'></div>
+      <div
+        className={`flex justify-center items-center p-8 min-h-screen ${
+          theme === 'light' ? 'bg-gray-50' : 'bg-obsidian-black'
+        }`}
+      >
+        <div
+          className={`w-8 h-8 border-4 border-t-transparent rounded-full animate-spin ${
+            theme === 'light' ? 'border-blue-600' : 'border-champagne-gold'
+          }`}
+        ></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className='p-8'>
-        <div className='bg-crimson-red/10 border border-crimson-red/20 rounded-lg p-4 mb-6'>
+      <div className={`p-8 min-h-screen ${theme === 'light' ? 'bg-gray-50' : 'bg-obsidian-black'}`}>
+        <div
+          className={`border rounded-lg p-4 mb-6 ${
+            theme === 'light' ? 'bg-red-50 border-red-200' : 'bg-crimson-red/10 border-crimson-red/20'
+          }`}
+        >
           <p className='text-crimson-red font-medium'>Error loading inventory</p>
           <p className='text-crimson-red/80 text-sm mt-1'>{error}</p>
           <button
@@ -438,32 +452,48 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onInventoryUpdate }) => {
   }
 
   return (
-    <div>
-      <p className='text-platinum-silver/80 mb-6'>Track your watch inventory from acquisition to sale.</p>
+    <div className={`min-h-screen p-6 ${theme === 'light' ? 'bg-gray-50' : 'bg-obsidian-black'}`}>
+      <p className={`mb-6 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver/80'}`}>
+        Track your watch inventory from acquisition to sale.
+      </p>
 
       {/* Search and Sort Header */}
       <div className='mb-6 space-y-4'>
         {/* Top Row: Title and Action Buttons */}
         <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4'>
-          <h2 className='text-2xl font-semibold text-platinum-silver'>Your Inventory</h2>
+          <h2 className={`text-2xl font-semibold ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
+            Your Inventory
+          </h2>
           <div className='flex items-center gap-3'>
             <button
               onClick={handleExportCSV}
-              className='flex items-center gap-2 bg-charcoal-slate border border-champagne-gold/50 text-champagne-gold font-bold py-2 px-4 rounded-lg hover:bg-champagne-gold/10 transition-all duration-300'
+              className={`flex items-center gap-2 font-bold py-2 px-4 rounded-lg transition-all duration-300 ${
+                theme === 'light'
+                  ? 'bg-white border border-blue-600 text-blue-600 hover:bg-blue-50'
+                  : 'bg-charcoal-slate border border-champagne-gold/50 text-champagne-gold hover:bg-champagne-gold/10'
+              }`}
             >
               <Download size={20} />
               Export to CSV
             </button>
             <button
               onClick={() => setIsImportModalOpen(true)}
-              className='flex items-center gap-2 bg-charcoal-slate border border-champagne-gold/50 text-champagne-gold font-bold py-2 px-4 rounded-lg hover:bg-champagne-gold/10 transition-all duration-300'
+              className={`flex items-center gap-2 font-bold py-2 px-4 rounded-lg transition-all duration-300 ${
+                theme === 'light'
+                  ? 'bg-white border border-blue-600 text-blue-600 hover:bg-blue-50'
+                  : 'bg-charcoal-slate border border-champagne-gold/50 text-champagne-gold hover:bg-champagne-gold/10'
+              }`}
             >
               <Upload size={20} />
               Import from CSV
             </button>
             <button
               onClick={handleAddNew}
-              className='flex items-center gap-2 bg-champagne-gold text-obsidian-black font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all duration-300'
+              className={`flex items-center gap-2 font-bold py-2 px-4 rounded-lg transition-all duration-300 ${
+                theme === 'light'
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-champagne-gold text-obsidian-black hover:bg-opacity-90'
+              }`}
             >
               <Plus size={20} />
               Add New Watch
@@ -488,9 +518,16 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onInventoryUpdate }) => {
           <div className='flex items-center gap-4'>
             <SortDropdown sortOption={sortOption} onSortChange={setSortOption} onClearSort={clearSort} />
 
-            <div className='text-sm text-platinum-silver/70'>
-              Showing <span className='text-champagne-gold font-medium'>{finalWatches.length}</span> of{' '}
-              <span className='text-platinum-silver'>{processedWatches.length}</span> watches
+            <div className={`text-sm ${theme === 'light' ? 'text-gray-600' : 'text-platinum-silver/70'}`}>
+              Showing{' '}
+              <span className={`font-medium ${theme === 'light' ? 'text-blue-600' : 'text-champagne-gold'}`}>
+                {finalWatches.length}
+              </span>{' '}
+              of{' '}
+              <span className={theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}>
+                {processedWatches.length}
+              </span>{' '}
+              watches
             </div>
           </div>
         </div>

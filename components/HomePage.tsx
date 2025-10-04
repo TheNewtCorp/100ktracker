@@ -20,6 +20,7 @@ import StatCard from './shared/StatCard';
 import { Tool, AppTool, Lead, Alert, LeadStatus } from '../types';
 import apiService from '../services/apiService';
 import { useMetrics } from '../hooks/useMetrics';
+import { useTheme } from '../hooks/useTheme';
 import { formatCurrency } from '../utils/metricsHelpers';
 
 import MetricsPage from './pages/MetricsPage';
@@ -63,6 +64,7 @@ const pages: { [key in Tool]: React.ComponentType<any> } = {
 };
 
 const HomePage: React.FC = () => {
+  const { theme } = useTheme();
   const [selectedApp, setSelectedApp] = useState<AppTool | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -195,8 +197,14 @@ const HomePage: React.FC = () => {
     <LayoutGroup>
       <div className='p-4 sm:p-8 min-h-screen'>
         <header className='text-center mb-12'>
-          <h1 className='text-5xl font-bold text-champagne-gold tracking-wider'>100KTracker</h1>
-          <p className='mt-2 text-platinum-silver/70 text-lg'>Dashboard</p>
+          <h1
+            className={`text-5xl font-bold tracking-wider ${
+              theme === 'light' ? 'text-blue-600' : 'text-champagne-gold'
+            }`}
+          >
+            100KTracker
+          </h1>
+          <p className={`mt-2 text-lg ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver/70'}`}>Dashboard</p>
         </header>
         {/* App Icons Grid */}
         <motion.div
@@ -221,17 +229,36 @@ const HomePage: React.FC = () => {
         {/* Key Metrics Section */}
         <div className='max-w-7xl mx-auto mt-16'>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-            <h2 className='text-2xl font-semibold text-platinum-silver mb-6'>Key Performance Metrics</h2>
+            <h2
+              className={`text-2xl font-semibold mb-6 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}
+            >
+              Key Performance Metrics
+            </h2>
 
             {metricsLoading ? (
               <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className='bg-charcoal-slate p-4 rounded-lg animate-pulse'>
+                  <div
+                    key={i}
+                    className={`p-4 rounded-lg animate-pulse transition-colors duration-300 ${
+                      theme === 'light' ? 'bg-gray-100' : 'bg-charcoal-slate'
+                    }`}
+                  >
                     <div className='flex items-center gap-4'>
-                      <div className='w-12 h-12 bg-champagne-gold/20 rounded-full'></div>
+                      <div
+                        className={`w-12 h-12 rounded-full ${
+                          theme === 'light' ? 'bg-blue-200' : 'bg-champagne-gold/20'
+                        }`}
+                      ></div>
                       <div>
-                        <div className='h-4 bg-platinum-silver/20 rounded w-20 mb-2'></div>
-                        <div className='h-6 bg-platinum-silver/20 rounded w-16'></div>
+                        <div
+                          className={`h-4 rounded w-20 mb-2 ${
+                            theme === 'light' ? 'bg-gray-300' : 'bg-platinum-silver/20'
+                          }`}
+                        ></div>
+                        <div
+                          className={`h-6 rounded w-16 ${theme === 'light' ? 'bg-gray-300' : 'bg-platinum-silver/20'}`}
+                        ></div>
                       </div>
                     </div>
                   </div>
@@ -265,7 +292,13 @@ const HomePage: React.FC = () => {
           <AnimatePresence>
             {alerts.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}>
-                <h2 className='text-2xl font-semibold text-platinum-silver mb-4'>Alerts & Reminders</h2>
+                <h2
+                  className={`text-2xl font-semibold mb-4 ${
+                    theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'
+                  }`}
+                >
+                  Alerts & Reminders
+                </h2>
                 <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
                   {alerts.slice(0, 3).map(
                     (
@@ -273,18 +306,34 @@ const HomePage: React.FC = () => {
                     ) => (
                       <motion.div
                         key={alert.id}
-                        className='bg-charcoal-slate p-4 rounded-xl border border-champagne-gold/20 flex items-start gap-4 cursor-pointer hover:border-champagne-gold/40 hover:bg-charcoal-slate/80 transition-all duration-200'
+                        className={`p-4 rounded-xl border flex items-start gap-4 cursor-pointer transition-all duration-200 ${
+                          theme === 'light'
+                            ? 'bg-white border-blue-200 hover:border-blue-400 hover:bg-blue-50/50'
+                            : 'bg-charcoal-slate border-champagne-gold/20 hover:border-champagne-gold/40 hover:bg-charcoal-slate/80'
+                        }`}
                         layout
                         onClick={() => handleAlertClick(alert)}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                       >
-                        <div className='flex-shrink-0 w-8 h-8 flex items-center justify-center bg-champagne-gold/10 text-champagne-gold rounded-full mt-1'>
+                        <div
+                          className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full mt-1 ${
+                            theme === 'light' ? 'bg-blue-100 text-blue-600' : 'bg-champagne-gold/10 text-champagne-gold'
+                          }`}
+                        >
                           <Bell size={18} />
                         </div>
                         <div>
-                          <p className='font-bold text-platinum-silver'>{alert.leadTitle}</p>
-                          <p className='text-sm text-platinum-silver/80 mt-1'>{alert.message}</p>
+                          <p className={`font-bold ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
+                            {alert.leadTitle}
+                          </p>
+                          <p
+                            className={`text-sm mt-1 ${
+                              theme === 'light' ? 'text-gray-900' : 'text-platinum-silver/80'
+                            }`}
+                          >
+                            {alert.message}
+                          </p>
                           <p className='text-xs text-platinum-silver/60 mt-2 font-mono'>
                             Due:{' '}
                             {new Date(alert.dueDate).toLocaleDateString(undefined, {
@@ -293,7 +342,13 @@ const HomePage: React.FC = () => {
                               day: 'numeric',
                             })}
                           </p>
-                          <p className='text-xs text-champagne-gold/60 mt-1 italic'>Click to view lead details →</p>
+                          <p
+                            className={`text-xs mt-1 italic ${
+                              theme === 'light' ? 'text-blue-500/70' : 'text-champagne-gold/60'
+                            }`}
+                          >
+                            Click to view lead details →
+                          </p>
                         </div>
                       </motion.div>
                     ),

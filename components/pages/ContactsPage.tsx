@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import { Contact, ContactType, Watch, AssociationRole, WatchAssociation, Card } from '../../types';
+import { useTheme } from '../../hooks/useTheme';
 import ContactFormModal from './contact/ContactFormModal';
 import ContactList from './contact/ContactList';
 import ConfirmDeleteContactModal from './contact/ConfirmDeleteContactModal';
@@ -29,6 +30,7 @@ const createStripeInvoiceWithContact = async (contact: Contact) => {
 };
 
 const ContactsPage: React.FC = () => {
+  const { theme } = useTheme();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [watches, setWatches] = useState<Watch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -211,7 +213,11 @@ const ContactsPage: React.FC = () => {
   if (isLoading) {
     return (
       <div className='flex justify-center items-center p-8'>
-        <div className='w-8 h-8 border-4 border-champagne-gold border-t-transparent rounded-full animate-spin'></div>
+        <div
+          className={`w-8 h-8 border-4 border-t-transparent rounded-full animate-spin ${
+            theme === 'light' ? 'border-blue-600' : 'border-champagne-gold'
+          }`}
+        ></div>
       </div>
     );
   }
@@ -219,7 +225,11 @@ const ContactsPage: React.FC = () => {
   if (error) {
     return (
       <div className='p-8'>
-        <div className='bg-crimson-red/10 border border-crimson-red/20 rounded-lg p-4 mb-6'>
+        <div
+          className={`border rounded-lg p-4 mb-6 ${
+            theme === 'light' ? 'bg-red-50 border-red-200' : 'bg-crimson-red/10 border-crimson-red/20'
+          }`}
+        >
           <p className='text-crimson-red font-medium'>Error loading contacts</p>
           <p className='text-crimson-red/80 text-sm mt-1'>{error}</p>
           <button
@@ -235,13 +245,21 @@ const ContactsPage: React.FC = () => {
 
   return (
     <div>
-      <p className='text-platinum-silver/80 mb-6'>Manage your network of clients, dealers, and partners.</p>
+      <p className={`mb-6 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver/80'}`}>
+        Manage your network of clients, dealers, and partners.
+      </p>
 
       <div className='flex justify-between items-center mb-6'>
-        <h2 className='text-2xl font-semibold text-platinum-silver'>Your Contacts</h2>
+        <h2 className={`text-2xl font-semibold ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
+          Your Contacts
+        </h2>
         <button
           onClick={handleAddNew}
-          className='flex items-center gap-2 bg-champagne-gold text-obsidian-black font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all duration-300'
+          className={`flex items-center gap-2 font-bold py-2 px-4 rounded-lg transition-all duration-300 ${
+            theme === 'light'
+              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-champagne-gold text-obsidian-black hover:bg-opacity-90'
+          }`}
         >
           <Plus size={20} />
           Add New Contact

@@ -4,6 +4,7 @@ import { X, Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle, XCircle
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { Watch, WatchSet } from '../../../types';
+import { useTheme } from '../../../hooks/useTheme';
 import ColumnMappingModal from './ColumnMappingModal';
 
 interface ImportModalProps {
@@ -19,6 +20,7 @@ interface ParsedData {
 }
 
 const ImportModal: React.FC<ImportModalProps> = ({ onClose, onImport }) => {
+  const { theme } = useTheme();
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
   const [showColumnMapping, setShowColumnMapping] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -282,14 +284,18 @@ const ImportModal: React.FC<ImportModalProps> = ({ onClose, onImport }) => {
 
   return (
     <motion.div
-      className='fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4'
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${
+        theme === 'light' ? 'bg-black/50' : 'bg-black/70'
+      }`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
     >
       <motion.div
-        className='bg-charcoal-slate rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden'
+        className={`rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden ${
+          theme === 'light' ? 'bg-white' : 'bg-charcoal-slate'
+        }`}
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
@@ -297,10 +303,21 @@ const ImportModal: React.FC<ImportModalProps> = ({ onClose, onImport }) => {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className='flex items-center justify-between p-6 border-b border-champagne-gold/10'>
-          <h2 className='text-xl font-bold text-platinum-silver'>Import Watches</h2>
-          <button onClick={onClose} className='p-1 rounded-full hover:bg-obsidian-black/50 transition-colors'>
-            <X size={24} className='text-platinum-silver/60' />
+        <div
+          className={`flex items-center justify-between p-6 border-b ${
+            theme === 'light' ? 'border-gray-200' : 'border-champagne-gold/10'
+          }`}
+        >
+          <h2 className={`text-xl font-bold ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
+            Import Watches
+          </h2>
+          <button
+            onClick={onClose}
+            className={`p-1 rounded-full transition-colors ${
+              theme === 'light' ? 'hover:bg-gray-100' : 'hover:bg-obsidian-black/50'
+            }`}
+          >
+            <X size={24} className={`${theme === 'light' ? 'text-gray-600' : 'text-platinum-silver/60'}`} />
           </button>
         </div>
 
@@ -308,13 +325,21 @@ const ImportModal: React.FC<ImportModalProps> = ({ onClose, onImport }) => {
         <div className='p-6 overflow-y-auto max-h-[calc(90vh-120px)]'>
           {/* Template Download */}
           <div className='mb-6'>
-            <h3 className='text-lg font-semibold text-platinum-silver mb-2'>Download Template</h3>
-            <p className='text-platinum-silver/80 mb-3'>
+            <h3
+              className={`text-lg font-semibold mb-2 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}
+            >
+              Download Template
+            </h3>
+            <p className={`mb-3 ${theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/80'}`}>
               Download a CSV template with the correct column headers and sample data.
             </p>
             <button
               onClick={downloadTemplate}
-              className='flex items-center gap-2 px-4 py-2 bg-charcoal-slate border border-champagne-gold/50 text-champagne-gold rounded-lg hover:bg-champagne-gold/10 transition-colors'
+              className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${
+                theme === 'light'
+                  ? 'bg-white border-blue-600 text-blue-600 hover:bg-blue-50'
+                  : 'bg-charcoal-slate border-champagne-gold/50 text-champagne-gold hover:bg-champagne-gold/10'
+              }`}
             >
               <Download size={16} />
               Download Template
@@ -323,12 +348,20 @@ const ImportModal: React.FC<ImportModalProps> = ({ onClose, onImport }) => {
 
           {/* File Upload */}
           <div className='mb-6'>
-            <h3 className='text-lg font-semibold text-platinum-silver mb-2'>Upload File</h3>
+            <h3
+              className={`text-lg font-semibold mb-2 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}
+            >
+              Upload File
+            </h3>
             <div
               className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                 isDragOver
-                  ? 'border-champagne-gold bg-champagne-gold/5'
-                  : 'border-champagne-gold/30 hover:border-champagne-gold/50'
+                  ? theme === 'light'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-champagne-gold bg-champagne-gold/5'
+                  : theme === 'light'
+                    ? 'border-gray-300 hover:border-blue-400'
+                    : 'border-champagne-gold/30 hover:border-champagne-gold/50'
               }`}
               onDrop={handleDrop}
               onDragOver={(e) => {
@@ -337,15 +370,24 @@ const ImportModal: React.FC<ImportModalProps> = ({ onClose, onImport }) => {
               }}
               onDragLeave={() => setIsDragOver(false)}
             >
-              <FileSpreadsheet className='mx-auto mb-4 text-champagne-gold' size={48} />
-              <p className='text-platinum-silver mb-2'>Drag and drop your CSV or Excel file here, or click to browse</p>
-              <p className='text-platinum-silver/60 text-sm mb-4'>
+              <FileSpreadsheet
+                className={`mx-auto mb-4 ${theme === 'light' ? 'text-blue-600' : 'text-champagne-gold'}`}
+                size={48}
+              />
+              <p className={`mb-2 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
+                Drag and drop your CSV or Excel file here, or click to browse
+              </p>
+              <p className={`text-sm mb-4 ${theme === 'light' ? 'text-gray-600' : 'text-platinum-silver/60'}`}>
                 Supported formats: .csv, .xlsx, .xls (Max size: 10MB, Max rows: 1,000)
               </p>
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isProcessing}
-                className='px-6 py-2 bg-champagne-gold text-obsidian-black font-semibold rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50'
+                className={`px-6 py-2 font-semibold rounded-lg transition-colors disabled:opacity-50 ${
+                  theme === 'light'
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-champagne-gold text-obsidian-black hover:bg-opacity-90'
+                }`}
               >
                 {isProcessing ? 'Processing...' : 'Choose File'}
               </button>
@@ -353,13 +395,21 @@ const ImportModal: React.FC<ImportModalProps> = ({ onClose, onImport }) => {
               {/* Progress Bar */}
               {isProcessing && (
                 <div className='w-full mt-4'>
-                  <div className='flex justify-between text-sm text-platinum-silver/60 mb-1'>
+                  <div
+                    className={`flex justify-between text-sm mb-1 ${
+                      theme === 'light' ? 'text-gray-600' : 'text-platinum-silver/60'
+                    }`}
+                  >
                     <span>Processing file...</span>
                     <span>{Math.round(processingProgress)}%</span>
                   </div>
-                  <div className='w-full bg-obsidian-black/50 rounded-full h-2'>
+                  <div
+                    className={`w-full rounded-full h-2 ${theme === 'light' ? 'bg-gray-200' : 'bg-obsidian-black/50'}`}
+                  >
                     <div
-                      className='bg-champagne-gold h-2 rounded-full transition-all duration-300'
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        theme === 'light' ? 'bg-blue-600' : 'bg-champagne-gold'
+                      }`}
                       style={{ width: `${processingProgress}%` }}
                     />
                   </div>
@@ -378,7 +428,11 @@ const ImportModal: React.FC<ImportModalProps> = ({ onClose, onImport }) => {
 
           {/* Error Display */}
           {error && (
-            <div className='mb-6 p-4 bg-crimson-red/10 border border-crimson-red/20 rounded-lg'>
+            <div
+              className={`mb-6 p-4 border rounded-lg ${
+                theme === 'light' ? 'bg-red-50 border-red-200' : 'bg-crimson-red/10 border-crimson-red/20'
+              }`}
+            >
               <div className='flex items-center gap-2'>
                 <XCircle className='text-crimson-red' size={16} />
                 <span className='text-crimson-red font-medium'>Error</span>
@@ -388,9 +442,11 @@ const ImportModal: React.FC<ImportModalProps> = ({ onClose, onImport }) => {
           )}
 
           {/* Instructions */}
-          <div className='bg-obsidian-black/30 rounded-lg p-4'>
-            <h4 className='text-platinum-silver font-semibold mb-2'>Import Instructions</h4>
-            <ul className='text-platinum-silver/80 text-sm space-y-1'>
+          <div className={`rounded-lg p-4 ${theme === 'light' ? 'bg-gray-50' : 'bg-obsidian-black/30'}`}>
+            <h4 className={`font-semibold mb-2 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
+              Import Instructions
+            </h4>
+            <ul className={`text-sm space-y-1 ${theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/80'}`}>
               <li>• First row should contain column headers</li>
               <li>• Required fields: Brand, Model, Reference Number</li>
               <li>• Dates should be in YYYY-MM-DD or MM/DD/YYYY format</li>
