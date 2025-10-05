@@ -226,7 +226,7 @@ const OperandiChallengePage: React.FC = () => {
                 <h1 className='text-2xl font-bold text-gray-900'>100ktracker</h1>
               </div>
               <div className='hidden md:block'>
-                <h2 className='text-xl font-semibold text-blue-600'>Sub Options</h2>
+                <h2 className='text-xl font-semibold text-blue-600'>VIP Pricing Options</h2>
               </div>
             </div>
           </div>
