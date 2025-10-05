@@ -1,12 +1,31 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DollarSign, Clock, Hash, TrendingUp, LayoutGrid, BarChart2 } from 'lucide-react';
+import {
+  DollarSign,
+  Clock,
+  Hash,
+  TrendingUp,
+  LayoutGrid,
+  BarChart2,
+  Settings,
+  Target,
+  Trophy,
+  BarChart,
+} from 'lucide-react';
 import { Watch, WatchSet } from '../../types';
 import apiService from '../../services/apiService';
 import StatCard from '../shared/StatCard';
 import { useMetrics } from '../../hooks/useMetrics';
 import { useTheme } from '../../hooks/useTheme';
 import { formatCurrency, calculateHoldTime, calculateNetProfit } from '../../utils/metricsHelpers';
+import { WidgetGrid } from '../widgets/WidgetGrid';
+import { WidgetSettingsPanel } from '../widgets/WidgetSettingsPanel';
+import { useWidgetSettings } from '../../hooks/useWidgetSettings';
+import { QuickStatsWidget } from '../widgets/QuickStatsWidget';
+import { MonthlyProfitWidget } from '../widgets/MonthlyProfitWidget';
+import { Goal100KWidget } from '../widgets/Goal100KWidget';
+import { LeaderboardWidget } from '../widgets/LeaderboardWidget';
+import { Widget, WidgetSettings } from '../../types/widget';
 
 // Load watches from real API
 const fetchWatchesFromAPI = async (): Promise<Watch[]> => {
@@ -159,91 +178,71 @@ interface MetricsPageProps {
 
 const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => {
   const { theme } = useTheme();
-  const [yearFilter, setYearFilter] = useState('All Time');
-  const [monthFilter, setMonthFilter] = useState('All Months');
-  const [viewMode, setViewMode] = useState<'graph' | 'table'>('graph');
+  const [showSettings, setShowSettings] = useState(false);
 
   // Use the shared metrics hook instead of local data fetching
   const { metrics, isLoading, error, refetch } = useMetrics(inventoryUpdateTrigger);
+  const { settings, toggleWidget, updateWidgetOrder, updateWidgetSettings, resetToDefaults } = useWidgetSettings();
 
-  // Still need to fetch watches for the detailed filtering and graphs
-  const [watches, setWatches] = useState<Watch[]>([]);
-  const [watchesLoading, setWatchesLoading] = useState(true);
-  const [watchesError, setWatchesError] = useState<string | null>(null);
-
-  const loadWatchData = useCallback(async () => {
-    setWatchesLoading(true);
-    setWatchesError(null);
-    try {
-      const fetchedWatches = await fetchWatchesFromAPI();
-      setWatches(fetchedWatches);
-    } catch (err: any) {
-      setWatchesError(err.message || 'Failed to load watch data');
-      console.error('Failed to load watch data:', err);
-    } finally {
-      setWatchesLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadWatchData();
-  }, [loadWatchData]);
-
-  // Reload data when inventory changes (triggered by inventoryUpdateTrigger)
-  useEffect(() => {
-    if (inventoryUpdateTrigger && inventoryUpdateTrigger > 0) {
-      console.log('MetricsPage: Inventory update trigger received, reloading metrics data');
-      loadWatchData();
-    }
-  }, [inventoryUpdateTrigger, loadWatchData]);
-
-  const soldWatches = useMemo(() => {
-    return watches
-      .filter((w) => w.dateSold && w.priceSold && w.purchasePrice)
-      .map((w) => {
-        const netProfit = calculateNetProfit(w);
-        const holdTime = calculateHoldTime(w.inDate, w.dateSold);
-        return { ...w, netProfit, holdTime };
-      });
-  }, [watches]);
-
-  const monthlyData = useMemo(() => {
-    const groups: { [key: string]: { profit: number; count: number } } = {};
-    soldWatches.forEach((w) => {
-      if (w.dateSold && w.netProfit) {
-        const period = w.dateSold.substring(0, 7); // YYYY-MM
-        if (!groups[period]) groups[period] = { profit: 0, count: 0 };
-        groups[period].profit += w.netProfit;
-        groups[period].count += 1;
+  // Create handlers that match the expected interface
+  const handleSettingsChange = (newSettings: WidgetSettings[]) => {
+    // For now, we'll update each setting individually
+    newSettings.forEach((setting) => {
+      if (setting.customSettings) {
+        updateWidgetSettings(setting.widgetId, setting.customSettings);
       }
     });
-    return Object.entries(groups)
-      .map(([period, data]) => ({ period, ...data }))
-      .sort((a, b) => a.period.localeCompare(b.period));
-  }, [soldWatches]);
+  };
 
-  const years = useMemo(
-    () => ['All Time', ...Array.from(new Set(monthlyData.map((d) => d.period.substring(0, 4))))],
-    [monthlyData],
-  );
-  const months = ['All Months', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  // Define available widgets
+  const widgets: Widget[] = [
+    {
+      id: 'quick-stats',
+      name: 'Quick Stats',
+      description: 'Overview of key trading metrics',
+      icon: BarChart,
+      component: QuickStatsWidget,
+      enabled: true,
+      order: 0,
+      size: 'large',
+      category: 'analytics',
+    },
+    {
+      id: 'monthly-profit',
+      name: 'Monthly Profit Tracker',
+      description: 'Track profits by month with interactive charts',
+      icon: TrendingUp,
+      component: MonthlyProfitWidget,
+      enabled: true,
+      order: 1,
+      size: 'full-width',
+      category: 'profits',
+    },
+    {
+      id: '100k-goal',
+      name: '100K Goal Tracker',
+      description: 'Track progress toward $100K annual profit goal',
+      icon: Target,
+      component: Goal100KWidget,
+      enabled: true,
+      order: 2,
+      size: 'large',
+      category: 'goals',
+    },
+    {
+      id: 'leaderboard',
+      name: 'Trader Leaderboard',
+      description: 'See how you rank against other traders',
+      icon: Trophy,
+      component: LeaderboardWidget,
+      enabled: true,
+      order: 3,
+      size: 'medium',
+      category: 'social',
+    },
+  ];
 
-  const filteredData = useMemo(() => {
-    let data = monthlyData;
-    if (yearFilter !== 'All Time') {
-      data = data.filter((d) => d.period.startsWith(yearFilter));
-    }
-    if (monthFilter !== 'All Months') {
-      const monthIndex = months.indexOf(monthFilter);
-      if (monthIndex > 0) {
-        const monthString = monthIndex.toString().padStart(2, '0');
-        data = data.filter((d) => d.period.substring(5, 7) === monthString);
-      }
-    }
-    return data;
-  }, [monthlyData, yearFilter, monthFilter, months]);
-
-  if (isLoading || watchesLoading) {
+  if (isLoading) {
     return (
       <div className='flex justify-center items-center h-64'>
         <div
@@ -255,7 +254,7 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
     );
   }
 
-  if (error || watchesError) {
+  if (error) {
     return (
       <div className='p-8'>
         <div
@@ -264,14 +263,9 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
           }`}
         >
           <p className='text-crimson-red font-medium'>Error loading metrics data</p>
-          <p className={`text-sm mt-1 ${theme === 'light' ? 'text-red-600' : 'text-crimson-red/80'}`}>
-            {error || watchesError}
-          </p>
+          <p className={`text-sm mt-1 ${theme === 'light' ? 'text-red-600' : 'text-crimson-red/80'}`}>{error}</p>
           <button
-            onClick={() => {
-              refetch();
-              loadWatchData();
-            }}
+            onClick={refetch}
             className={`mt-3 px-4 py-2 rounded-lg text-sm transition-colors ${
               theme === 'light'
                 ? 'bg-red-600 text-white hover:bg-red-700'
@@ -285,26 +279,28 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
     );
   }
 
-  if (soldWatches.length === 0) {
-    return (
-      <div
-        className={`p-8 border-2 border-dashed rounded-lg text-center ${
-          theme === 'light' ? 'border-gray-300 text-gray-600' : 'border-champagne-gold/20 text-platinum-silver/60'
-        }`}
-      >
-        No sales data available. Sell a watch to start seeing your metrics.
-      </div>
-    );
-  }
-
-  const singleMonthView = yearFilter !== 'All Time' && monthFilter !== 'All Months';
-
   return (
     <div className='space-y-8'>
       <div>
-        <h2 className={`text-2xl font-semibold mb-4 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
-          Overall Performance
-        </h2>
+        <div className='flex items-center justify-between mb-4'>
+          <h2 className={`text-2xl font-semibold ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
+            Overall Performance
+          </h2>
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className={`
+              flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm
+              ${
+                theme === 'light'
+                  ? 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  : 'bg-charcoal-slate hover:bg-obsidian-black text-platinum-silver'
+              }
+            `}
+          >
+            <Settings size={16} />
+            Widget Settings
+          </button>
+        </div>
         <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
           <StatCard
             icon={<DollarSign size={24} />}
@@ -321,172 +317,33 @@ const MetricsPage: React.FC<MetricsPageProps> = ({ inventoryUpdateTrigger }) => 
         </div>
       </div>
 
-      <div
-        className={`p-6 rounded-xl border ${
-          theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-obsidian-black/50 border-champagne-gold/10'
-        }`}
-      >
-        <div className='flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4'>
-          <h2 className={`text-2xl font-semibold ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
-            Monthly Profit Tracker
-          </h2>
-          <div className='flex items-center gap-2'>
-            <select
-              value={yearFilter}
-              onChange={(e) => {
-                setYearFilter(e.target.value);
-                if (e.target.value === 'All Time') setMonthFilter('All Months');
-              }}
-              className={`border rounded-md px-3 py-1.5 text-sm transition-colors ${
-                theme === 'light'
-                  ? 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500'
-                  : 'bg-charcoal-slate border-champagne-gold/20 text-platinum-silver focus:ring-champagne-gold focus:border-champagne-gold'
-              }`}
-            >
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-            <select
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-              disabled={yearFilter === 'All Time'}
-              className={`border rounded-md px-3 py-1.5 text-sm transition-colors disabled:opacity-50 ${
-                theme === 'light'
-                  ? 'bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500'
-                  : 'bg-charcoal-slate border-champagne-gold/20 text-platinum-silver focus:ring-champagne-gold focus:border-champagne-gold'
-              }`}
-            >
-              {months.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-            {!singleMonthView && (
-              <div
-                className={`flex items-center p-1 rounded-md ${
-                  theme === 'light' ? 'bg-white border border-gray-300' : 'bg-charcoal-slate'
-                }`}
-              >
-                <button
-                  onClick={() => setViewMode('graph')}
-                  className={`px-2 py-1 text-sm rounded transition-colors ${
-                    viewMode === 'graph'
-                      ? theme === 'light'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-champagne-gold text-obsidian-black'
-                      : theme === 'light'
-                        ? 'text-gray-600 hover:bg-gray-100'
-                        : 'text-platinum-silver/70 hover:bg-obsidian-black/50'
-                  }`}
-                >
-                  <BarChart2 size={16} />
-                </button>
-                <button
-                  onClick={() => setViewMode('table')}
-                  className={`px-2 py-1 text-sm rounded transition-colors ${
-                    viewMode === 'table'
-                      ? theme === 'light'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-champagne-gold text-obsidian-black'
-                      : theme === 'light'
-                        ? 'text-gray-600 hover:bg-gray-100'
-                        : 'text-platinum-silver/70 hover:bg-obsidian-black/50'
-                  }`}
-                >
-                  <LayoutGrid size={16} />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-        <AnimatePresence mode='wait'>
-          <motion.div
-            key={singleMonthView ? 'single' : viewMode}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-          >
-            {singleMonthView ? (
-              <div
-                className={`text-center p-8 rounded-lg min-h-[250px] flex flex-col justify-center items-center ${
-                  theme === 'light' ? 'bg-white border border-gray-200' : 'bg-charcoal-slate'
-                }`}
-              >
-                {filteredData.length > 0 ? (
-                  <>
-                    <p className={theme === 'light' ? 'text-gray-600' : 'text-platinum-silver/70'}>
-                      {monthFilter} {yearFilter} Summary
-                    </p>
-                    <p className='text-4xl font-bold text-money-green mt-2'>{formatCurrency(filteredData[0].profit)}</p>
-                    <p className={`mt-1 ${theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/80'}`}>
-                      from {filteredData[0].count} sale(s)
-                    </p>
-                  </>
-                ) : (
-                  <p className={theme === 'light' ? 'text-gray-500' : 'text-platinum-silver/60'}>
-                    No sales data for {monthFilter} {yearFilter}.
-                  </p>
-                )}
-              </div>
-            ) : viewMode === 'graph' ? (
-              <div className='flex justify-center'>
-                <div className='w-full max-w-2xl'>
-                  <LineGraph
-                    theme={theme}
-                    data={filteredData.map((d) => ({
-                      label: months[parseInt(d.period.substring(5, 7))],
-                      value: d.profit,
-                    }))}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className='overflow-auto max-h-[300px]'>
-                <table className='w-full text-sm text-left'>
-                  <thead className={`text-xs uppercase ${theme === 'light' ? 'text-gray-700' : 'text-champagne-gold'}`}>
-                    <tr>
-                      <th className='px-4 py-2'>Month</th>
-                      <th className='px-4 py-2 text-right'>Watches Sold</th>
-                      <th className='px-4 py-2 text-right'>Net Profit</th>
-                    </tr>
-                  </thead>
-                  <tbody className={theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/90'}>
-                    {filteredData.map((d) => (
-                      <tr
-                        key={d.period}
-                        className={`border-b ${theme === 'light' ? 'border-gray-200' : 'border-champagne-gold/10'}`}
-                      >
-                        <td className='px-4 py-2 font-medium'>
-                          {months[parseInt(d.period.substring(5, 7))]} {d.period.substring(0, 4)}
-                        </td>
-                        <td className='px-4 py-2 text-right'>{d.count}</td>
-                        <td className='px-4 py-2 text-right font-semibold text-money-green'>
-                          {formatCurrency(d.profit)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {filteredData.length === 0 && !singleMonthView && (
-              <div
-                className={`h-[250px] flex items-center justify-center ${
-                  theme === 'light' ? 'text-gray-500' : 'text-platinum-silver/60'
-                }`}
-              >
-                No sales data for the selected period.
-              </div>
-            )}
-          </motion.div>
-        </AnimatePresence>
+      {/* Widget Settings Panel */}
+      {showSettings && (
+        <WidgetSettingsPanel
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
+          widgets={widgets}
+          settings={settings}
+          onSettingsChange={handleSettingsChange}
+          onResetToDefaults={resetToDefaults}
+        />
+      )}
+
+      {/* Widget Grid */}
+      <div>
+        <h2 className={`text-2xl font-semibold mb-6 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
+          Dashboard Widgets
+        </h2>
+        <WidgetGrid
+          widgets={widgets}
+          settings={settings}
+          onSettingsChange={handleSettingsChange}
+          onWidgetToggle={toggleWidget}
+          isLoading={isLoading}
+          error={error ? error : undefined}
+        />
       </div>
     </div>
   );
 };
-
 export default MetricsPage;
