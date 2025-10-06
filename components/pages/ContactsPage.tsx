@@ -93,6 +93,17 @@ const ContactsPage: React.FC = () => {
         sellerContactId: watch.seller_contact_id?.toString(),
       }));
 
+      console.log(
+        'DEBUG: Loaded watches with associations:',
+        transformedWatches.map((w) => ({
+          id: w.id,
+          brand: w.brand,
+          model: w.model,
+          buyerContactId: w.buyerContactId,
+          sellerContactId: w.sellerContactId,
+        })),
+      );
+
       setContacts(transformedContacts);
       setWatches(transformedWatches);
     } catch (err: any) {
@@ -114,12 +125,17 @@ const ContactsPage: React.FC = () => {
       watches.forEach((watch) => {
         const watchIdentifier = `${watch.brand} ${watch.model} (${watch.referenceNumber})`;
         if (watch.sellerContactId === contact.id) {
+          console.log(`DEBUG: Found seller association - Watch ${watch.id} -> Contact ${contact.id}`);
           associations.push({ watchId: watch.id, role: AssociationRole.Seller, watchIdentifier });
         }
         if (watch.buyerContactId === contact.id) {
+          console.log(`DEBUG: Found buyer association - Watch ${watch.id} -> Contact ${contact.id}`);
           associations.push({ watchId: watch.id, role: AssociationRole.Buyer, watchIdentifier });
         }
       });
+      console.log(
+        `DEBUG: Contact ${contact.firstName} ${contact.lastName} (${contact.id}) has ${associations.length} associations`,
+      );
       // Ensure cards array exists
       return { ...contact, watchAssociations: associations, cards: contact.cards || [] };
     });
@@ -132,6 +148,8 @@ const ContactsPage: React.FC = () => {
 
   const handleEdit = (contact: Contact) => {
     const fullContactData = linkedContacts.find((c) => c.id === contact.id) || null;
+    console.log('DEBUG: Editing contact:', fullContactData);
+    console.log('DEBUG: Contact associations:', fullContactData?.watchAssociations);
     setEditingContact(fullContactData);
     setIsModalOpen(true);
   };
@@ -161,6 +179,111 @@ const ContactsPage: React.FC = () => {
     setDeletingContact(null);
     setIsDeleting(false);
   };
+
+  const updateWatchAssociations = useCallback(
+    async (contactId: string, newAssociations: WatchAssociation[]) => {
+      console.log('DEBUG: Updating associations for contact', contactId, 'with', newAssociations);
+      console.log('DEBUG: Current watches array length:', watches.length);
+
+      // Clear existing associations for this contact
+      const clearedWatches = watches.filter(
+        (watch) => watch.buyerContactId === contactId || watch.sellerContactId === contactId,
+      );
+
+      console.log(
+        'DEBUG: Clearing associations for watches:',
+        clearedWatches.map((w) => ({
+          id: w.id,
+          brand: w.brand,
+          buyerContactId: w.buyerContactId,
+          sellerContactId: w.sellerContactId,
+        })),
+      );
+
+      for (const watch of clearedWatches) {
+        const updatedWatchData = {
+          brand: watch.brand,
+          model: watch.model,
+          reference_number: watch.referenceNumber,
+          in_date: watch.inDate,
+          serial_number: watch.serialNumber,
+          watch_set: watch.watchSet,
+          platform_purchased: watch.platformPurchased,
+          purchase_price: watch.purchasePrice,
+          liquidation_price: watch.liquidationPrice,
+          accessories: watch.accessories,
+          accessories_cost: watch.accessoriesCost,
+          date_sold: watch.dateSold,
+          platform_sold: watch.platformSold,
+          price_sold: watch.priceSold,
+          fees: watch.fees,
+          shipping: watch.shipping,
+          taxes: watch.taxes,
+          notes: watch.notes,
+          buyer_contact_id: watch.buyerContactId === contactId ? null : watch.buyerContactId,
+          seller_contact_id: watch.sellerContactId === contactId ? null : watch.sellerContactId,
+        };
+        console.log(
+          'DEBUG: Clearing associations for watch',
+          watch.id,
+          'setting buyer_contact_id to',
+          updatedWatchData.buyer_contact_id,
+          'and seller_contact_id to',
+          updatedWatchData.seller_contact_id,
+        );
+        await apiService.updateWatch(watch.id, updatedWatchData);
+      }
+
+      // Set new associations
+      console.log('DEBUG: Setting new associations:', newAssociations);
+      for (const association of newAssociations) {
+        console.log('DEBUG: Looking for watch with ID:', association.watchId);
+        console.log(
+          'DEBUG: Available watch IDs:',
+          watches.map((w) => w.id),
+        );
+        const watch = watches.find((w) => w.id === association.watchId);
+        console.log('DEBUG: Found watch:', watch ? `${watch.brand} ${watch.model}` : 'NOT FOUND');
+        if (watch) {
+          const updatedWatchData = {
+            brand: watch.brand,
+            model: watch.model,
+            reference_number: watch.referenceNumber,
+            in_date: watch.inDate,
+            serial_number: watch.serialNumber,
+            watch_set: watch.watchSet,
+            platform_purchased: watch.platformPurchased,
+            purchase_price: watch.purchasePrice,
+            liquidation_price: watch.liquidationPrice,
+            accessories: watch.accessories,
+            accessories_cost: watch.accessoriesCost,
+            date_sold: watch.dateSold,
+            platform_sold: watch.platformSold,
+            price_sold: watch.priceSold,
+            fees: watch.fees,
+            shipping: watch.shipping,
+            taxes: watch.taxes,
+            notes: watch.notes,
+            buyer_contact_id: association.role === AssociationRole.Buyer ? contactId : watch.buyerContactId,
+            seller_contact_id: association.role === AssociationRole.Seller ? contactId : watch.sellerContactId,
+          };
+          console.log(
+            'DEBUG: Setting association for watch',
+            watch.id,
+            'role',
+            association.role,
+            'buyer_contact_id',
+            updatedWatchData.buyer_contact_id,
+            'seller_contact_id',
+            updatedWatchData.seller_contact_id,
+          );
+          const updateResult = await apiService.updateWatch(watch.id, updatedWatchData);
+          console.log('DEBUG: Update result for watch', watch.id, ':', updateResult);
+        }
+      }
+    },
+    [watches],
+  );
 
   const handleSaveContact = useCallback(
     async (contactData: Omit<Contact, 'id'> | Contact, newAssociations: WatchAssociation[], cards: Card[]) => {
@@ -195,11 +318,23 @@ const ContactsPage: React.FC = () => {
         }
 
         // Handle watch associations updates
-        // Note: This is simplified - in a full implementation you'd want to update
-        // the watches through the API as well when associations change
+        const contactId = 'id' in contactData && contactData.id ? contactData.id : savedContact.contact?.id?.toString();
 
+        console.log('DEBUG: Handling associations for contactId:', contactId, 'newAssociations:', newAssociations);
+
+        if (contactId && newAssociations) {
+          await updateWatchAssociations(contactId, newAssociations);
+        }
+
+        // TODO: Handle cards updates when card management API is implemented
+        // if (contactId && cards) {
+        //   await updateContactCards(contactId, cards);
+        // }
+
+        console.log('DEBUG: About to reload data after save');
         // Reload data to get the updated list
         await loadData();
+        console.log('DEBUG: Data reloaded after save');
         setIsModalOpen(false);
         setEditingContact(null);
       } catch (err: any) {
@@ -207,7 +342,7 @@ const ContactsPage: React.FC = () => {
         console.error('Failed to save contact:', err);
       }
     },
-    [loadData],
+    [loadData, updateWatchAssociations],
   );
 
   if (isLoading) {
