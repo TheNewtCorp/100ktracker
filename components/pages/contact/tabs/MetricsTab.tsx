@@ -25,26 +25,28 @@ const MetricsTab: React.FC<MetricsTabProps> = ({ contact, watches, associations 
     const boughtAssociations = associations.filter((a) => a.role === AssociationRole.Buyer);
     const soldAssociations = associations.filter((a) => a.role === AssociationRole.Seller);
 
-    const boughtWatches = boughtAssociations
+    const contactBoughtWatches = boughtAssociations
       .map((a) => watches.find((w) => w.id === a.watchId))
       .filter(Boolean) as Watch[];
 
-    const soldWatches = soldAssociations.map((a) => watches.find((w) => w.id === a.watchId)).filter(Boolean) as Watch[];
+    const contactSoldWatches = soldAssociations
+      .map((a) => watches.find((w) => w.id === a.watchId))
+      .filter(Boolean) as Watch[];
 
-    // Purchase metrics
-    const totalSpent = boughtWatches.reduce((sum, w) => sum + (w.purchasePrice || 0), 0);
-    const avgPurchasePrice = boughtWatches.length > 0 ? totalSpent / boughtWatches.length : 0;
+    // Revenue metrics (contact bought FROM user - money coming IN to user)
+    const totalRevenue = contactBoughtWatches.reduce((sum, w) => sum + (w.priceSold || 0), 0);
+    const avgSalePrice = contactBoughtWatches.length > 0 ? totalRevenue / contactBoughtWatches.length : 0;
 
-    // Sales metrics
-    const totalRevenue = soldWatches.reduce((sum, w) => sum + (w.priceSold || 0), 0);
-    const avgSalePrice = soldWatches.length > 0 ? totalRevenue / soldWatches.length : 0;
+    // Expense metrics (contact sold TO user - money going OUT from user)
+    const totalSpent = contactSoldWatches.reduce((sum, w) => sum + (w.purchasePrice || 0), 0);
+    const avgPurchasePrice = contactSoldWatches.length > 0 ? totalSpent / contactSoldWatches.length : 0;
 
-    // Net calculations
+    // Net calculations (from user's perspective)
     const totalVolume = totalSpent + totalRevenue;
     const netProfit = totalRevenue - totalSpent;
 
     // Favorite brands
-    const brandCounts = [...boughtWatches, ...soldWatches].reduce(
+    const brandCounts = [...contactBoughtWatches, ...contactSoldWatches].reduce(
       (acc, watch) => {
         acc[watch.brand] = (acc[watch.brand] || 0) + 1;
         return acc;
@@ -61,19 +63,19 @@ const MetricsTab: React.FC<MetricsTabProps> = ({ contact, watches, associations 
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-    const recentPurchases = boughtWatches.filter((w) => w.inDate && new Date(w.inDate) >= ninetyDaysAgo).length;
+    const recentPurchases = contactSoldWatches.filter((w) => w.inDate && new Date(w.inDate) >= ninetyDaysAgo).length;
 
-    const recentSales = soldWatches.filter((w) => w.dateSold && new Date(w.dateSold) >= ninetyDaysAgo).length;
+    const recentSales = contactBoughtWatches.filter((w) => w.dateSold && new Date(w.dateSold) >= ninetyDaysAgo).length;
 
     return {
       purchase: {
-        count: boughtWatches.length,
+        count: contactSoldWatches.length, // Watches user purchased (contact was seller)
         total: totalSpent,
         average: avgPurchasePrice,
         recent: recentPurchases,
       },
       sales: {
-        count: soldWatches.length,
+        count: contactBoughtWatches.length, // Watches user sold (contact was buyer)
         total: totalRevenue,
         average: avgSalePrice,
         recent: recentSales,
@@ -81,7 +83,7 @@ const MetricsTab: React.FC<MetricsTabProps> = ({ contact, watches, associations 
       relationship: {
         totalVolume,
         netProfit,
-        dealCount: boughtWatches.length + soldWatches.length,
+        dealCount: contactBoughtWatches.length + contactSoldWatches.length,
         favoriteBrand,
       },
     };
@@ -145,7 +147,7 @@ const MetricsTab: React.FC<MetricsTabProps> = ({ contact, watches, associations 
       {/* Purchase Metrics */}
       <div>
         <h3 className={`text-lg font-semibold mb-4 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
-          Purchase Activity
+          Your Purchases (from this contact)
         </h3>
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
           <MetricCard title='Watches Bought' value={metrics.purchase.count} icon={Package} color='green' />
@@ -170,7 +172,7 @@ const MetricsTab: React.FC<MetricsTabProps> = ({ contact, watches, associations 
       {/* Sales Metrics */}
       <div>
         <h3 className={`text-lg font-semibold mb-4 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
-          Sales Activity
+          Your Sales (to this contact)
         </h3>
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
           <MetricCard title='Watches Sold' value={metrics.sales.count} icon={Package} color='blue' />
@@ -243,17 +245,17 @@ const MetricsTab: React.FC<MetricsTabProps> = ({ contact, watches, associations 
           <h4 className={`font-semibold mb-2 ${theme === 'light' ? 'text-blue-900' : 'text-arctic-blue-900'}`}>
             Key Insights
           </h4>
-          <ul className={`text-sm space-y-1 ${theme === 'light' ? 'text-blue-800' : 'text-arctic-blue-900'}`}>
+          <ul className={`text-sm space-y-1 ${theme === 'light' ? 'text-blue-800' : 'text-arctic-blue/80'}`}>
             {metrics.purchase.count > 0 && (
               <li>
-                • This contact has purchased {metrics.purchase.count} watch{metrics.purchase.count !== 1 ? 'es' : ''}{' '}
-                totaling {formatCurrency(metrics.purchase.total)}
+                • You have purchased {metrics.purchase.count} watch{metrics.purchase.count !== 1 ? 'es' : ''} from this
+                contact, spending {formatCurrency(metrics.purchase.total)}
               </li>
             )}
             {metrics.sales.count > 0 && (
               <li>
-                • This contact has sold {metrics.sales.count} watch{metrics.sales.count !== 1 ? 'es' : ''} generating{' '}
-                {formatCurrency(metrics.sales.total)} in revenue
+                • You have sold {metrics.sales.count} watch{metrics.sales.count !== 1 ? 'es' : ''} to this contact,{' '}
+                generating {formatCurrency(metrics.sales.total)} in revenue
               </li>
             )}
             {metrics.relationship.netProfit !== 0 && (
@@ -264,7 +266,7 @@ const MetricsTab: React.FC<MetricsTabProps> = ({ contact, watches, associations 
             )}
             {metrics.relationship.favoriteBrand.count > 1 && (
               <li>
-                • Shows preference for {metrics.relationship.favoriteBrand.brand} watches (
+                • Most traded brand with this contact: {metrics.relationship.favoriteBrand.brand} (
                 {metrics.relationship.favoriteBrand.count} transactions)
               </li>
             )}
