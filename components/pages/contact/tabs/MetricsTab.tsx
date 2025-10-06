@@ -245,7 +245,7 @@ const MetricsTab: React.FC<MetricsTabProps> = ({ contact, watches, associations 
           <h4 className={`font-semibold mb-2 ${theme === 'light' ? 'text-blue-900' : 'text-arctic-blue-900'}`}>
             Key Insights
           </h4>
-          <ul className={`text-sm space-y-1 ${theme === 'light' ? 'text-blue-800' : 'text-arctic-blue/80'}`}>
+          <ul className={`text-sm space-y-1 ${theme === 'light' ? 'text-blue-800' : 'text-arctic-blue-900'}`}>
             {metrics.purchase.count > 0 && (
               <li>
                 • You have purchased {metrics.purchase.count} watch{metrics.purchase.count !== 1 ? 'es' : ''} from this
