@@ -1,14 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { X, Trash2, AlertTriangle, CreditCard } from 'lucide-react';
-import { Contact, ContactType, Watch, AssociationRole, WatchAssociation, Card } from '../../../types';
+import { X, User, Watch, BarChart3, CreditCard } from 'lucide-react';
+import { Contact, ContactType, Watch as WatchType, AssociationRole, WatchAssociation, Card } from '../../../types';
 import { useTheme } from '../../../hooks/useTheme';
+import TabNavigation, { TabId } from '../../ui/TabNavigation';
+import GeneralTab from './tabs/GeneralTab';
+import WatchesTab from './tabs/WatchesTab';
+import MetricsTab from './tabs/MetricsTab';
+import CardsTab from './tabs/CardsTab';
 
 interface ContactFormModalProps {
   onClose: () => void;
   onSave: (contact: Omit<Contact, 'id'> | Contact, associations: WatchAssociation[], cards: Card[]) => void;
   contact: Contact | null;
-  watches: Watch[];
+  watches: WatchType[];
   contacts: Contact[];
 }
 
@@ -38,6 +43,7 @@ const NewCardInitialState = {
 
 const ContactFormModal: React.FC<ContactFormModalProps> = ({ onClose, onSave, contact, watches, contacts }) => {
   const { theme } = useTheme();
+  const [activeTab, setActiveTab] = useState<TabId>('general');
   const [formData, setFormData] = useState(contact || initialContactState);
   const [associations, setAssociations] = useState<WatchAssociation[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
@@ -53,6 +59,14 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ onClose, onSave, co
     setAssociations(contact?.watchAssociations || []);
     setCards(contact?.cards || []);
   }, [contact]);
+
+  // Tab configuration
+  const tabs = [
+    { id: 'general' as TabId, label: 'General', icon: User },
+    { id: 'watches' as TabId, label: 'Watches', icon: Watch, badge: associations.length },
+    { id: 'metrics' as TabId, label: 'Metrics', icon: BarChart3 },
+    { id: 'cards' as TabId, label: 'Cards', icon: CreditCard, badge: cards.length },
+  ];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -122,16 +136,15 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ onClose, onSave, co
     onSave(formData, associations, cards);
   };
 
-  const handleAddAssociation = () => {
-    if (!selectedWatchId) return;
-    const watch = watches.find((w) => w.id === selectedWatchId);
+  const handleAddAssociation = (watchId: string, role: AssociationRole) => {
+    const watch = watches.find((w) => w.id === watchId);
     if (!watch) return;
 
     setAssociations((prev) => [
       ...prev,
       {
-        watchId: selectedWatchId,
-        role: selectedRole,
+        watchId,
+        role,
         watchIdentifier: `${watch.brand} ${watch.model} (${watch.referenceNumber})`,
       },
     ]);
@@ -141,34 +154,6 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ onClose, onSave, co
   const handleRemoveAssociation = (watchId: string, role: AssociationRole) => {
     setAssociations((prev) => prev.filter((a) => !(a.watchId === watchId && a.role === role)));
   };
-
-  const associationConflict = useMemo(() => {
-    if (!selectedWatchId) return null;
-    const watch = watches.find((w) => w.id === selectedWatchId);
-    if (!watch) return null;
-
-    const conflictingContactId = selectedRole === AssociationRole.Buyer ? watch.buyerContactId : watch.sellerContactId;
-    if (conflictingContactId && conflictingContactId !== contact?.id) {
-      const conflictingContact = contacts.find((c) => c.id === conflictingContactId);
-      return `${conflictingContact?.firstName || 'Another contact'} is already assigned as the ${selectedRole}. This will be overwritten.`;
-    }
-    return null;
-  }, [selectedWatchId, selectedRole, watches, contacts, contact]);
-
-  const availableWatches = useMemo(
-    () => watches.filter((w) => !associations.some((a) => a.watchId === w.id)),
-    [watches, associations],
-  );
-
-  const inputClass =
-    theme === 'light'
-      ? 'appearance-none relative block w-full px-3 py-2.5 bg-white border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors'
-      : 'appearance-none relative block w-full px-3 py-2.5 bg-obsidian-black border border-champagne-gold/20 placeholder-platinum-silver/50 text-platinum-silver rounded-md focus:outline-none focus:ring-champagne-gold focus:border-champagne-gold sm:text-sm transition-colors';
-
-  const labelClass =
-    theme === 'light'
-      ? 'block text-sm font-medium text-gray-700 mb-1'
-      : 'block text-sm font-medium text-platinum-silver/80 mb-1';
 
   return (
     <motion.div
@@ -181,7 +166,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ onClose, onSave, co
       onClick={onClose}
     >
       <motion.div
-        className={`rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col ${
+        className={`rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col ${
           theme === 'light' ? 'bg-white border border-gray-200' : 'bg-charcoal-slate'
         }`}
         initial={{ scale: 0.9, opacity: 0 }}
@@ -207,425 +192,48 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ onClose, onSave, co
             <X size={24} />
           </button>
         </header>
-        <div className='flex-grow overflow-y-auto p-6'>
-          <form onSubmit={handleSubmit} className='space-y-6'>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4'>
-              <div>
-                <label htmlFor='firstName' className={labelClass}>
-                  First Name <span className='text-crimson-red'>*</span>
-                </label>
-                <input
-                  type='text'
-                  name='firstName'
-                  id='firstName'
-                  value={formData.firstName || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                  required
+
+        {/* Tab Navigation */}
+        <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+
+        <div className='flex-grow overflow-y-auto'>
+          <form onSubmit={handleSubmit}>
+            <div className='p-6'>
+              {activeTab === 'general' && <GeneralTab formData={formData} onChange={handleChange} error={error} />}
+
+              {activeTab === 'watches' && (
+                <WatchesTab
+                  contact={contact}
+                  watches={watches}
+                  contacts={contacts}
+                  associations={associations}
+                  onAddAssociation={handleAddAssociation}
+                  onRemoveAssociation={handleRemoveAssociation}
+                  selectedWatchId={selectedWatchId}
+                  selectedRole={selectedRole}
+                  onWatchIdChange={setSelectedWatchId}
+                  onRoleChange={setSelectedRole}
                 />
-              </div>
-              <div>
-                <label htmlFor='lastName' className={labelClass}>
-                  Last Name
-                </label>
-                <input
-                  type='text'
-                  name='lastName'
-                  id='lastName'
-                  value={formData.lastName || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label htmlFor='email' className={labelClass}>
-                  Email
-                </label>
-                <input
-                  type='email'
-                  name='email'
-                  id='email'
-                  value={formData.email || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label htmlFor='phone' className={labelClass}>
-                  Phone
-                </label>
-                <input
-                  type='tel'
-                  name='phone'
-                  id='phone'
-                  value={formData.phone || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label htmlFor='contactSource' className={labelClass}>
-                  Contact Source
-                </label>
-                <input
-                  type='text'
-                  name='contactSource'
-                  id='contactSource'
-                  value={formData.contactSource || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label htmlFor='contactType' className={labelClass}>
-                  Contact Type
-                </label>
-                <select
-                  name='contactType'
-                  id='contactType'
-                  value={formData.contactType || ContactType.Lead}
-                  onChange={handleChange}
-                  className={inputClass}
-                >
-                  {Object.values(ContactType).map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className='md:col-span-2'>
-                <label htmlFor='businessName' className={labelClass}>
-                  Business Name
-                </label>
-                <input
-                  type='text'
-                  name='businessName'
-                  id='businessName'
-                  value={formData.businessName || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                />
-              </div>
-              <div className='md:col-span-2'>
-                <label htmlFor='streetAddress' className={labelClass}>
-                  Street Address
-                </label>
-                <input
-                  type='text'
-                  name='streetAddress'
-                  id='streetAddress'
-                  value={formData.streetAddress || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label htmlFor='city' className={labelClass}>
-                  City
-                </label>
-                <input
-                  type='text'
-                  name='city'
-                  id='city'
-                  value={formData.city || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label htmlFor='state' className={labelClass}>
-                  State
-                </label>
-                <input
-                  type='text'
-                  name='state'
-                  id='state'
-                  value={formData.state || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label htmlFor='postalCode' className={labelClass}>
-                  Postal Code
-                </label>
-                <input
-                  type='text'
-                  name='postalCode'
-                  id='postalCode'
-                  value={formData.postalCode || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label htmlFor='website' className={labelClass}>
-                  Website
-                </label>
-                <input
-                  type='url'
-                  name='website'
-                  id='website'
-                  value={formData.website || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                />
-              </div>
-              <div className='md:col-span-2'>
-                <label htmlFor='timeZone' className={labelClass}>
-                  Time Zone
-                </label>
-                <input
-                  type='text'
-                  name='timeZone'
-                  id='timeZone'
-                  value={formData.timeZone || ''}
-                  onChange={handleChange}
-                  className={inputClass}
-                />
-              </div>
-              <div className='md:col-span-2'>
-                <label htmlFor='notes' className={labelClass}>
-                  Notes
-                </label>
-                <textarea
-                  name='notes'
-                  id='notes'
-                  value={formData.notes || ''}
-                  onChange={handleChange}
-                  rows={3}
-                  className={inputClass}
-                ></textarea>
-              </div>
-            </div>
-            <div className={`pt-4 border-t ${theme === 'light' ? 'border-gray-200' : 'border-champagne-gold/10'}`}>
-              <h3
-                className={`text-lg font-semibold mb-3 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}
-              >
-                Watch Associations
-              </h3>
-              <div className='space-y-2 mb-4'>
-                {associations.map((assoc) => (
-                  <div
-                    key={`${assoc.watchId}-${assoc.role}`}
-                    className={`flex items-center justify-between p-2 rounded-md text-sm ${
-                      theme === 'light' ? 'bg-gray-50 border border-gray-200' : 'bg-obsidian-black'
-                    }`}
-                  >
-                    <div>
-                      <span
-                        className={`font-semibold ${
-                          assoc.role === AssociationRole.Buyer
-                            ? theme === 'light'
-                              ? 'text-green-600'
-                              : 'text-money-green'
-                            : theme === 'light'
-                              ? 'text-blue-600'
-                              : 'text-arctic-blue'
-                        }`}
-                      >
-                        {assoc.role}:
-                      </span>
-                      <span className={theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/80'}>
-                        {assoc.watchIdentifier}
-                      </span>
-                    </div>
-                    <button
-                      type='button'
-                      onClick={() => handleRemoveAssociation(assoc.watchId, assoc.role)}
-                      className='text-crimson-red/70 hover:text-crimson-red p-1'
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ))}
-                {associations.length === 0 && (
-                  <p className={`text-sm ${theme === 'light' ? 'text-gray-500' : 'text-platinum-silver/60'}`}>
-                    No watches associated.
-                  </p>
-                )}
-              </div>{' '}
-              <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-end'>
-                <div className='sm:col-span-2 md:col-span-2'>
-                  <label htmlFor='watch' className={labelClass}>
-                    Associate Watch
-                  </label>
-                  <select
-                    id='watch'
-                    value={selectedWatchId}
-                    onChange={(e) => setSelectedWatchId(e.target.value)}
-                    className={inputClass}
-                  >
-                    <option value=''>Select a watch...</option>
-                    {availableWatches.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.brand} {w.model}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor='role' className={labelClass}>
-                    As
-                  </label>
-                  <select
-                    id='role'
-                    value={selectedRole}
-                    onChange={(e) => setSelectedRole(e.target.value as AssociationRole)}
-                    className={inputClass}
-                  >
-                    {Object.values(AssociationRole).map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className='md:col-span-2'>
-                  <button
-                    type='button'
-                    onClick={handleAddAssociation}
-                    disabled={!selectedWatchId}
-                    className={`w-full py-2.5 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      theme === 'light'
-                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                        : 'bg-champagne-gold/20 text-champagne-gold hover:bg-champagne-gold/30'
-                    }`}
-                  >
-                    Add Association
-                  </button>
-                </div>
-              </div>
-              {associationConflict && (
-                <div
-                  className={`mt-3 p-2 text-xs rounded-md flex items-center gap-2 ${
-                    theme === 'light'
-                      ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
-                      : 'bg-yellow-900/50 text-yellow-300'
-                  }`}
-                >
-                  <AlertTriangle size={16} />
-                  <span>{associationConflict}</span>
-                </div>
               )}
-            </div>
-            <div className={`pt-4 border-t ${theme === 'light' ? 'border-gray-200' : 'border-champagne-gold/10'}`}>
-              <h3
-                className={`text-lg font-semibold mb-3 ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}
-              >
-                Saved Cards
-              </h3>
-              <div className='space-y-2 mb-4'>
-                {cards.map((card) => (
-                  <div
-                    key={card.id}
-                    className={`flex items-center justify-between p-2 rounded-md text-sm ${
-                      theme === 'light' ? 'bg-gray-50 border border-gray-200' : 'bg-obsidian-black'
-                    }`}
-                  >
-                    <div className='flex items-center gap-3'>
-                      <CreditCard className={theme === 'light' ? 'text-blue-600' : 'text-champagne-gold'} size={20} />
-                      <div>
-                        <p
-                          className={`font-semibold ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver/90'}`}
-                        >
-                          {card.cardholderName}
-                        </p>
-                        <p className={theme === 'light' ? 'text-gray-600' : 'text-platinum-silver/60'}>
-                          Card ending in •••• {card.last4}
-                          <span className='ml-2'>
-                            Expires {card.expiryMonth}/{card.expiryYear.slice(-2)}
-                          </span>
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type='button'
-                      onClick={() => handleRemoveCard(card.id)}
-                      className='text-crimson-red/70 hover:text-crimson-red p-1'
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ))}
-                {cards.length === 0 && (
-                  <p className={`text-sm ${theme === 'light' ? 'text-gray-500' : 'text-platinum-silver/60'}`}>
-                    No cards on file.
-                  </p>
-                )}
-              </div>
-              <div
-                className={`p-4 rounded-lg space-y-3 ${
-                  theme === 'light' ? 'bg-gray-50 border border-gray-200' : 'bg-obsidian-black/50'
-                }`}
-              >
-                <h4 className={`font-semibold ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
-                  Add a New Card
-                </h4>
-                <div className='grid grid-cols-1 lg:grid-cols-6 gap-3 items-start'>
-                  <div className='lg:col-span-6'>
-                    <label className={labelClass}>Cardholder Name</label>
-                    <input
-                      type='text'
-                      name='cardholderName'
-                      value={newCard.cardholderName}
-                      onChange={handleNewCardChange}
-                      className={inputClass}
-                    />
-                  </div>
-                  <div className='lg:col-span-3'>
-                    <label className={labelClass}>Card Number</label>
-                    <input
-                      type='text'
-                      name='cardNumber'
-                      value={newCard.cardNumber}
-                      onChange={handleNewCardChange}
-                      className={inputClass}
-                      placeholder='•••• •••• •••• ••••'
-                    />
-                  </div>
-                  <div className='lg:col-span-1'>
-                    <label className={labelClass}>Expiry</label>
-                    <input
-                      type='text'
-                      name='expiry'
-                      value={newCard.expiry}
-                      onChange={handleNewCardChange}
-                      className={inputClass}
-                      placeholder='MMYY'
-                    />
-                  </div>
-                  <div className='lg:col-span-1'>
-                    <label className={labelClass}>CVC</label>
-                    <input
-                      type='text'
-                      name='cvc'
-                      value={newCard.cvc}
-                      onChange={handleNewCardChange}
-                      className={inputClass}
-                      placeholder='•••'
-                    />
-                  </div>
-                  <div className='lg:col-span-1 flex items-end h-full'>
-                    <button
-                      type='button'
-                      onClick={handleAddCard}
-                      className={`w-full py-2.5 px-4 rounded-lg font-semibold transition-colors ${
-                        theme === 'light'
-                          ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                          : 'bg-champagne-gold/20 text-champagne-gold hover:bg-champagne-gold/30'
-                      }`}
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-                {cardError && <p className='text-xs text-crimson-red mt-1'>{cardError}</p>}
-              </div>
+
+              {activeTab === 'metrics' && (
+                <MetricsTab contact={contact} watches={watches} associations={associations} />
+              )}
+
+              {activeTab === 'cards' && (
+                <CardsTab
+                  cards={cards}
+                  newCard={newCard}
+                  onNewCardChange={handleNewCardChange}
+                  onAddCard={handleAddCard}
+                  onRemoveCard={handleRemoveCard}
+                  cardError={cardError}
+                />
+              )}
             </div>
           </form>
         </div>
+
         <footer
           className={`p-4 border-t flex justify-end items-center gap-4 ${
             theme === 'light' ? 'border-gray-200' : 'border-champagne-gold/10'
