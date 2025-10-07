@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Users, Trash2, Square, CheckSquare, Trash } from 'lucide-react';
+import { Edit2, Users, Trash2, Square, CheckSquare, Trash, History } from 'lucide-react';
 import { Watch } from '../../../types';
 import SetBadge from './preview/SetBadge';
 import NotesPreview from './preview/NotesPreview';
 import { useTheme } from '../../../hooks/useTheme';
+import WatchHistoryModal from './WatchHistoryModal';
 
 interface WatchListProps {
   watches: (Watch & { totalIn?: number; netProfit?: number; profitPercentage?: number; holdTime?: string })[];
@@ -23,6 +24,8 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
   const { theme } = useTheme();
   const [selectedWatches, setSelectedWatches] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
+  const [historyWatch, setHistoryWatch] = useState<Watch | null>(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
   // Reset selection when watches change
   useEffect(() => {
@@ -58,6 +61,16 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
       setSelectedWatches(new Set());
       setIsSelectMode(false);
     }
+  };
+
+  const handleShowHistory = (watch: Watch) => {
+    setHistoryWatch(watch);
+    setIsHistoryModalOpen(true);
+  };
+
+  const handleCloseHistory = () => {
+    setIsHistoryModalOpen(false);
+    setHistoryWatch(null);
   };
 
   if (watches.length === 0) {
@@ -279,6 +292,18 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
                       </button>
                     )}
                     <button
+                      onClick={() => handleShowHistory(watch)}
+                      className={`p-1.5 rounded-md transition-colors ${
+                        theme === 'light'
+                          ? 'hover:bg-purple-100 text-purple-600'
+                          : 'hover:bg-purple-500/20 text-purple-400'
+                      }`}
+                      aria-label='Watch History'
+                      title='Watch History'
+                    >
+                      <History size={16} />
+                    </button>
+                    <button
                       onClick={() => onEdit(watch)}
                       className={`p-1.5 rounded-md transition-colors ${
                         theme === 'light'
@@ -305,6 +330,11 @@ const WatchList: React.FC<WatchListProps> = ({ watches, onEdit, onShowAssociatio
           </motion.tbody>
         </table>
       </div>
+
+      {/* Watch History Modal */}
+      {historyWatch && (
+        <WatchHistoryModal watch={historyWatch} isOpen={isHistoryModalOpen} onClose={handleCloseHistory} />
+      )}
     </div>
   );
 };

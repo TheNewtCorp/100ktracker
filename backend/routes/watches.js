@@ -1,7 +1,14 @@
 // Watches CRUD routes with authentication
 const express = require('express');
 const router = express.Router();
-const { getUserWatches, createUserWatch, updateUserWatch, deleteUserWatch, bulkDeleteUserWatches } = require('../db');
+const {
+  getUserWatches,
+  createUserWatch,
+  updateUserWatch,
+  deleteUserWatch,
+  bulkDeleteUserWatches,
+  getWatchHistory,
+} = require('../db');
 
 // Middleware to verify JWT (imported from auth.js)
 function authenticateJWT(req, res, next) {
@@ -158,6 +165,37 @@ router.post('/', authenticateJWT, validateWatch, (req, res) => {
   });
 });
 
+// GET /api/watches/:id/history - Get watch change history
+router.get('/:id/history', authenticateJWT, (req, res) => {
+  const watchId = req.params.id;
+
+  // First verify the watch belongs to the user
+  getUserWatches(req.user.id, (err, watches) => {
+    if (err) {
+      console.error('Database error:', err);
+      return res.status(500).json({ error: 'Failed to verify watch ownership' });
+    }
+
+    const watch = watches.find((w) => w.id.toString() === watchId);
+    if (!watch) {
+      return res.status(404).json({ error: 'Watch not found' });
+    }
+
+    // Get watch history
+    getWatchHistory(watchId, (historyErr, history) => {
+      if (historyErr) {
+        console.error('Database error:', historyErr);
+        return res.status(500).json({ error: 'Failed to retrieve watch history' });
+      }
+
+      res.json({
+        watch: watch,
+        history: history || [],
+      });
+    });
+  });
+});
+
 // GET /api/watches/:id - Get specific watch
 router.get('/:id', authenticateJWT, (req, res) => {
   getUserWatches(req.user.id, (err, watches) => {
@@ -172,20 +210,6 @@ router.get('/:id', authenticateJWT, (req, res) => {
     }
 
     res.json(watch);
-  });
-});
-
-// POST /api/watches - Create new watch
-router.post('/', authenticateJWT, validateWatch, (req, res) => {
-  createUserWatch(req.user.id, req.body, function (err) {
-    if (err) {
-      console.error('Database error:', err);
-      return res.status(500).json({ error: 'Failed to create watch' });
-    }
-
-    // Return the created watch with the new ID
-    const newWatch = { id: this.lastID, ...req.body };
-    res.status(201).json(newWatch);
   });
 });
 

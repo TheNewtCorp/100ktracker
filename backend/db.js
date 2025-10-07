@@ -642,6 +642,7 @@ function createAllTables() {
   return Promise.all([
     createUserWatchesTable(),
     createUserContactsTable(),
+    createWatchHistoryTable(),
     createUserLeadsTable(),
     createUserCardsTable(),
     createUserInvoicesTable(),
@@ -726,6 +727,34 @@ function createUserContactsTable() {
           reject(err);
         } else {
           console.log('user_contacts table created/verified');
+          resolve();
+        }
+      },
+    );
+  });
+}
+
+function createWatchHistoryTable() {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `CREATE TABLE IF NOT EXISTS watch_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      watch_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      change_type TEXT NOT NULL, -- 'created', 'updated', 'deleted'
+      field_name TEXT, -- Field that was changed (null for creation/deletion)
+      old_value TEXT, -- Previous value (JSON string for complex values)
+      new_value TEXT, -- New value (JSON string for complex values)
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (watch_id) REFERENCES user_watches (id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    )`,
+      (err) => {
+        if (err) {
+          console.error('Error creating watch_history table:', err.message);
+          reject(err);
+        } else {
+          console.log('watch_history table created/verified');
           resolve();
         }
       },
@@ -1037,7 +1066,21 @@ function createUserWatch(userId, watchData, callback) {
       buyer_contact_id,
       seller_contact_id,
     ],
-    callback,
+    function (err) {
+      if (err) {
+        return callback(err);
+      }
+
+      const watchId = this.lastID;
+      // Record the watch creation in history
+      createWatchHistoryEntry(watchId, userId, 'created', null, null, null, (historyErr) => {
+        if (historyErr) {
+          console.error('Failed to record watch creation in history:', historyErr);
+        }
+        // Still call the original callback with the watch creation result
+        callback(err, { id: watchId, changes: this.changes });
+      });
+    },
   );
 }
 
@@ -1065,44 +1108,170 @@ function updateUserWatch(userId, watchId, watchData, callback) {
     seller_contact_id,
   } = watchData;
 
+  // First, get the old data for change tracking
+  db.get('SELECT * FROM user_watches WHERE id = ? AND user_id = ?', [watchId, userId], (err, oldData) => {
+    if (err) {
+      return callback(err);
+    }
+
+    if (!oldData) {
+      return callback(new Error('Watch not found'));
+    }
+
+    // Now perform the update
+    db.run(
+      `UPDATE user_watches SET 
+        brand = ?, model = ?, reference_number = ?, in_date = ?, serial_number = ?, watch_set = ?, 
+        platform_purchased = ?, purchase_price = ?, liquidation_price = ?, accessories = ?, 
+        accessories_cost = ?, date_sold = ?, platform_sold = ?, price_sold = ?, fees = ?, 
+        shipping = ?, taxes = ?, notes = ?, buyer_contact_id = ?, seller_contact_id = ?, 
+        updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ? AND user_id = ?`,
+      [
+        brand,
+        model,
+        reference_number,
+        in_date,
+        serial_number,
+        watch_set,
+        platform_purchased,
+        purchase_price,
+        liquidation_price,
+        accessories,
+        accessories_cost,
+        date_sold,
+        platform_sold,
+        price_sold,
+        fees,
+        shipping,
+        taxes,
+        notes,
+        buyer_contact_id,
+        seller_contact_id,
+        watchId,
+        userId,
+      ],
+      function (updateErr) {
+        if (updateErr) {
+          return callback(updateErr);
+        }
+
+        // Track the changes
+        trackWatchChange(watchId, userId, oldData, watchData, (trackErr) => {
+          if (trackErr) {
+            console.error('Failed to track watch changes:', trackErr);
+          }
+          // Still call the original callback with the update result
+          callback(updateErr, { changes: this.changes });
+        });
+      },
+    );
+  });
+}
+
+// Watch History Functions
+function createWatchHistoryEntry(
+  watchId,
+  userId,
+  changeType,
+  fieldName = null,
+  oldValue = null,
+  newValue = null,
+  callback,
+) {
   db.run(
-    `UPDATE user_watches SET 
-    brand = ?, model = ?, reference_number = ?, in_date = ?, serial_number = ?, watch_set = ?, 
-    platform_purchased = ?, purchase_price = ?, liquidation_price = ?, accessories = ?, 
-    accessories_cost = ?, date_sold = ?, platform_sold = ?, price_sold = ?, fees = ?, 
-    shipping = ?, taxes = ?, notes = ?, buyer_contact_id = ?, seller_contact_id = ?, 
-    updated_at = CURRENT_TIMESTAMP 
-    WHERE id = ? AND user_id = ?`,
-    [
-      brand,
-      model,
-      reference_number,
-      in_date,
-      serial_number,
-      watch_set,
-      platform_purchased,
-      purchase_price,
-      liquidation_price,
-      accessories,
-      accessories_cost,
-      date_sold,
-      platform_sold,
-      price_sold,
-      fees,
-      shipping,
-      taxes,
-      notes,
-      buyer_contact_id,
-      seller_contact_id,
-      watchId,
-      userId,
-    ],
+    `INSERT INTO watch_history (watch_id, user_id, change_type, field_name, old_value, new_value) 
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [watchId, userId, changeType, fieldName, oldValue, newValue],
     callback,
   );
 }
 
+function getWatchHistory(watchId, callback) {
+  db.all(
+    `SELECT * FROM watch_history 
+     WHERE watch_id = ? 
+     ORDER BY timestamp DESC`,
+    [watchId],
+    callback,
+  );
+}
+
+function trackWatchChange(watchId, userId, oldData, newData, callback) {
+  const changes = [];
+  const fieldsToTrack = [
+    'brand',
+    'model',
+    'reference_number',
+    'in_date',
+    'serial_number',
+    'watch_set',
+    'platform_purchased',
+    'purchase_price',
+    'liquidation_price',
+    'accessories',
+    'accessories_cost',
+    'date_sold',
+    'platform_sold',
+    'price_sold',
+    'fees',
+    'shipping',
+    'taxes',
+    'notes',
+    'buyer_contact_id',
+    'seller_contact_id',
+  ];
+
+  fieldsToTrack.forEach((field) => {
+    const oldVal = oldData ? oldData[field] : null;
+    const newVal = newData ? newData[field] : null;
+
+    // Convert to strings for comparison (handle nulls and numbers)
+    const oldStr = oldVal === null || oldVal === undefined ? null : String(oldVal);
+    const newStr = newVal === null || newVal === undefined ? null : String(newVal);
+
+    if (oldStr !== newStr) {
+      changes.push({
+        field: field,
+        oldValue: oldStr,
+        newValue: newStr,
+      });
+    }
+  });
+
+  if (changes.length === 0) {
+    return callback(null, { changesRecorded: 0 });
+  }
+
+  let completed = 0;
+  let errors = [];
+
+  changes.forEach((change) => {
+    createWatchHistoryEntry(watchId, userId, 'updated', change.field, change.oldValue, change.newValue, (err) => {
+      if (err) errors.push(err);
+      completed++;
+
+      if (completed === changes.length) {
+        if (errors.length > 0) {
+          callback(errors[0], { changesRecorded: completed - errors.length, errors });
+        } else {
+          callback(null, { changesRecorded: completed });
+        }
+      }
+    });
+  });
+}
+
 function deleteUserWatch(userId, watchId, callback) {
-  db.run('DELETE FROM user_watches WHERE id = ? AND user_id = ?', [watchId, userId], callback);
+  // Record the deletion in history before deleting
+  createWatchHistoryEntry(watchId, userId, 'deleted', null, null, null, (historyErr) => {
+    if (historyErr) {
+      console.error('Failed to record watch deletion in history:', historyErr);
+    }
+
+    // Proceed with deletion regardless of history recording success
+    db.run('DELETE FROM user_watches WHERE id = ? AND user_id = ?', [watchId, userId], callback);
+  });
 }
 
 function bulkDeleteUserWatches(userId, watchIds, callback) {
@@ -1891,6 +2060,10 @@ module.exports = {
   updateUserWatch,
   deleteUserWatch,
   bulkDeleteUserWatches,
+  // Watch History
+  createWatchHistoryEntry,
+  getWatchHistory,
+  trackWatchChange,
   // Contacts
   getUserContacts,
   createUserContact,
