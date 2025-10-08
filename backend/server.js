@@ -20,9 +20,11 @@ const leadRoutes = require('./routes/leads');
 const invoiceRoutes = require('./routes/invoices-safe'); // Safe version without Stripe
 const accountRoutes = require('./routes/account');
 const webhookRoutes = require('./routes/webhooks'); // Step 5: Webhook integration
+const webhookSquareRoutes = require('./routes/webhooks-square'); // Square webhook integration
 const promoRoutes = require('./routes/promo'); // Operandi Challenge promo routes
 const adminRoutes = require('./routes/admin'); // General admin routes for account provisioning
-const paymentRoutes = require('./routes/payments'); // Stripe payment and checkout routes
+const paymentRoutes = require('./routes/payments'); // Square payment and checkout routes
+const squareTestRoutes = require('./routes/square-test'); // Square configuration testing routes
 
 const app = express();
 // Render assigns PORT automatically for web services, fallback to 3001 for local dev
@@ -148,9 +150,12 @@ app.use('/api/contacts', contactRoutes);
 app.use('/api/leads', leadRoutes);
 app.use('/api/invoices', invoiceRoutes); // Safe version enabled
 app.use('/api/account', accountRoutes);
+app.use('/api/webhooks', webhookRoutes); // Legacy Stripe webhooks
+app.use('/api/webhooks', webhookSquareRoutes); // Square webhooks
 app.use('/api/promo', promoRoutes); // Operandi Challenge promo routes
 app.use('/api/admin', adminRoutes); // General admin routes for account provisioning
-app.use('/api/payments', paymentRoutes); // Stripe payment and checkout routes
+app.use('/api/payments', paymentRoutes); // Square payment and checkout routes
+app.use('/api/square', squareTestRoutes); // Square configuration testing routes
 
 app.get('/', (req, res) => {
   res.send('100KTracker backend running');

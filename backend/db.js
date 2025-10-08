@@ -119,6 +119,9 @@ function createUserTable() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       stripe_secret_key TEXT,
       stripe_publishable_key TEXT,
+      square_customer_id TEXT,
+      square_subscription_id TEXT,
+      payment_processor TEXT DEFAULT 'square',
       subscription_tier TEXT DEFAULT NULL,
       subscription_status TEXT DEFAULT 'free',
       subscription_price REAL DEFAULT 0,
@@ -167,6 +170,7 @@ function createUserTable() {
                   console.log('Default admin user created');
                   // Run migrations
                   Promise.all([
+                    migrateToSquareColumns(),
                     migrateStripeColumns(),
                     migrateInvoicesTableColumns(),
                     migrateInvoiceContactConstraint(),
@@ -186,6 +190,7 @@ function createUserTable() {
             console.log('Admin user already exists');
             // Run migrations and create promo admin user
             Promise.all([
+              migrateToSquareColumns(),
               migrateStripeColumns(),
               migrateInvoicesTableColumns(),
               migrateInvoiceContactConstraint(),
@@ -228,7 +233,93 @@ function createUserTable() {
   });
 }
 
-// Migrate existing databases to add Stripe columns if they don't exist
+// Migrate existing databases to add Square columns and remove Stripe columns
+function migrateToSquareColumns() {
+  return new Promise((resolve, reject) => {
+    // Get all column information
+    db.all('PRAGMA table_info(users)', (err, columns) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      const hasStripeSecretKey = columns.some((col) => col.name === 'stripe_secret_key');
+      const hasStripePublishableKey = columns.some((col) => col.name === 'stripe_publishable_key');
+      const hasStripeSubscriptionId = columns.some((col) => col.name === 'stripe_subscription_id');
+      const hasSquareCustomerId = columns.some((col) => col.name === 'square_customer_id');
+      const hasSquareSubscriptionId = columns.some((col) => col.name === 'square_subscription_id');
+      const hasPaymentProcessor = columns.some((col) => col.name === 'payment_processor');
+
+      const migrations = [];
+
+      // Add Square columns if they don't exist
+      if (!hasSquareCustomerId) {
+        migrations.push(
+          new Promise((resolveCol, rejectCol) => {
+            db.run('ALTER TABLE users ADD COLUMN square_customer_id TEXT', (err) => {
+              if (err) {
+                console.error('Error adding square_customer_id column:', err.message);
+                rejectCol(err);
+              } else {
+                console.log('Added square_customer_id column to users table');
+                resolveCol();
+              }
+            });
+          }),
+        );
+      }
+
+      if (!hasSquareSubscriptionId) {
+        migrations.push(
+          new Promise((resolveCol, rejectCol) => {
+            db.run('ALTER TABLE users ADD COLUMN square_subscription_id TEXT', (err) => {
+              if (err) {
+                console.error('Error adding square_subscription_id column:', err.message);
+                rejectCol(err);
+              } else {
+                console.log('Added square_subscription_id column to users table');
+                resolveCol();
+              }
+            });
+          }),
+        );
+      }
+
+      if (!hasPaymentProcessor) {
+        migrations.push(
+          new Promise((resolveCol, rejectCol) => {
+            db.run('ALTER TABLE users ADD COLUMN payment_processor TEXT DEFAULT "square"', (err) => {
+              if (err) {
+                console.error('Error adding payment_processor column:', err.message);
+                rejectCol(err);
+              } else {
+                console.log('Added payment_processor column to users table');
+                resolveCol();
+              }
+            });
+          }),
+        );
+      }
+
+      if (migrations.length === 0) {
+        console.log('Square columns already exist in users table');
+        resolve();
+      } else {
+        Promise.all(migrations)
+          .then(() => {
+            console.log('All Square column migrations completed successfully');
+            resolve();
+          })
+          .catch((migrationError) => {
+            console.error('Error during Square column migration:', migrationError);
+            reject(migrationError);
+          });
+      }
+    });
+  });
+}
+
+// Legacy function - kept for backward compatibility during transition
 function migrateStripeColumns() {
   return new Promise((resolve, reject) => {
     // Check if stripe_secret_key column exists
@@ -716,7 +807,8 @@ function createUserContactsTable() {
       website TEXT,
       time_zone TEXT,
       notes TEXT,
-      stripe_customer_id TEXT, -- Stripe customer ID for invoicing
+      stripe_customer_id TEXT, -- Legacy Stripe customer ID for invoicing
+      square_customer_id TEXT, -- Square customer ID for invoicing
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
@@ -827,7 +919,9 @@ function createUserInvoicesTable() {
       `CREATE TABLE IF NOT EXISTS user_invoices (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
-      stripe_invoice_id TEXT UNIQUE NOT NULL,
+      stripe_invoice_id TEXT UNIQUE, -- Legacy Stripe invoice ID
+      square_invoice_id TEXT UNIQUE, -- Square invoice ID
+      payment_processor TEXT DEFAULT 'square', -- 'stripe' or 'square'
       contact_id INTEGER, -- Made nullable to support manual customers
       status TEXT NOT NULL DEFAULT 'draft', -- draft, open, paid, void, uncollectible
       total_amount REAL NOT NULL DEFAULT 0,
