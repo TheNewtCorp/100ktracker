@@ -184,7 +184,113 @@ router.post(
 );
 
 /**
- * Handle successful payment (placeholder)
+ * Process Square Payment for existing order
+ * POST /api/payments/process-payment
+ */
+router.post(
+  '/process-payment',
+  [
+    body('orderId').notEmpty().withMessage('Order ID is required'),
+    body('paymentToken').notEmpty().withMessage('Payment token is required'),
+    body('amount').isNumeric().withMessage('Amount is required'),
+    body('idempotencyKey').notEmpty().withMessage('Idempotency key is required'),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: errors.array(),
+        });
+      }
+
+      const { orderId, paymentToken, amount, idempotencyKey } = req.body;
+
+      // Get order details first
+      const orderResult = await ordersApi.get({
+        orderId: orderId,
+      });
+      if (!orderResult.order) {
+        return res.status(404).json({
+          error: 'Order not found',
+        });
+      }
+
+      const order = orderResult.order;
+
+      // Create payment using Square Payments API
+      const paymentRequest = {
+        idempotencyKey,
+        sourceId: paymentToken,
+        amountMoney: {
+          amount: BigInt(amount), // Amount in cents
+          currency: 'USD',
+        },
+        orderId: orderId,
+        autocomplete: true, // Automatically complete the payment
+        locationId: process.env.SQUARE_LOCATION_ID,
+        note: `Payment for 100K Tracker subscription - Order ${orderId}`,
+      };
+
+      console.log('Processing Square payment:', {
+        orderId,
+        amount,
+        idempotencyKey: idempotencyKey.substring(0, 8) + '...',
+      });
+
+      const paymentResult = await paymentsApi.create(paymentRequest);
+
+      if (paymentResult.payment) {
+        const payment = paymentResult.payment;
+        console.log('Payment created successfully:', payment.id);
+
+        res.json({
+          success: true,
+          paymentId: payment.id,
+          message: 'Payment processed successfully',
+          payment: {
+            id: payment.id,
+            status: payment.status,
+            orderId: payment.orderId,
+            amountMoney: payment.amountMoney
+              ? {
+                  amount: Number(payment.amountMoney.amount), // Convert BigInt to Number
+                  currency: payment.amountMoney.currency,
+                }
+              : null,
+            createdAt: payment.createdAt,
+          },
+        });
+      } else {
+        throw new Error('Payment creation failed - no payment object returned');
+      }
+    } catch (error) {
+      console.error('Error processing Square payment:', error);
+
+      // Handle specific Square payment errors
+      if (error.statusCode && error.body && error.body.errors) {
+        const squareError = error.body.errors[0];
+        return res.status(400).json({
+          success: false,
+          error: 'Payment failed',
+          message: squareError.detail || 'Payment processing failed',
+          code: squareError.code,
+          category: squareError.category,
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        error: 'Payment processing failed',
+        message: error.message,
+      });
+    }
+  },
+);
+
+/**
+ * Handle successful payment (updated for Square)
  * POST /api/payments/success
  */
 router.post('/success', [body('orderId').notEmpty().withMessage('Order ID is required')], async (req, res) => {
@@ -200,7 +306,9 @@ router.post('/success', [body('orderId').notEmpty().withMessage('Order ID is req
     const { orderId } = req.body;
 
     // Retrieve the order details
-    const orderResult = await ordersApi.get(orderId);
+    const orderResult = await ordersApi.get({
+      orderId: orderId,
+    });
 
     if (!orderResult.order) {
       return res.status(404).json({
@@ -240,7 +348,12 @@ router.post('/success', [body('orderId').notEmpty().withMessage('Order ID is req
       order: {
         id: orderId,
         state: order.state,
-        totalMoney: order.totalMoney,
+        totalMoney: order.totalMoney
+          ? {
+              amount: Number(order.totalMoney.amount), // Convert BigInt to Number
+              currency: order.totalMoney.currency,
+            }
+          : null,
       },
     });
   } catch (error) {

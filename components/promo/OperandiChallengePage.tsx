@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiService } from '../../services/apiService';
+import SquarePaymentForm from '../payments/SquarePaymentForm';
+import { SquarePaymentConfig, SquarePaymentResult, dollarsToSquareCents } from '../../utils/squareConfig';
 
 const OperandiChallengePage: React.FC = () => {
   const [promoCode, setPromoCode] = useState('');
@@ -17,7 +19,12 @@ const OperandiChallengePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<'success' | 'cancelled' | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [orderData, setOrderData] = useState<{
+    orderId: string;
+    customerId: string;
+    amount: number;
+  } | null>(null);
 
   // Ref for debouncing promo code validation
   const promoCodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -26,14 +33,13 @@ const OperandiChallengePage: React.FC = () => {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const payment = urlParams.get('payment');
-    const session_id = urlParams.get('session_id');
+    const order_id = urlParams.get('order_id');
 
-    if (payment === 'success' && session_id) {
+    if (payment === 'success' && order_id) {
       setPaymentStatus('success');
-      setSessionId(session_id);
 
       // Handle payment success
-      handlePaymentSuccess(session_id);
+      handlePaymentSuccess(order_id);
     } else if (payment === 'cancelled') {
       setPaymentStatus('cancelled');
       setError('Payment was cancelled. You can try again.');
@@ -49,9 +55,9 @@ const OperandiChallengePage: React.FC = () => {
     };
   }, []);
 
-  const handlePaymentSuccess = async (sessionId: string) => {
+  const handlePaymentSuccess = async (orderId: string) => {
     try {
-      const result = await apiService.handlePaymentSuccess(sessionId);
+      const result = await apiService.handlePaymentSuccess(orderId);
       if (result.success) {
         setIsSubmitted(true);
         // Optionally clear URL parameters
@@ -161,7 +167,7 @@ const OperandiChallengePage: React.FC = () => {
         return;
       }
 
-      // Create Stripe checkout session
+      // Create Square order (but don't process payment yet)
       const checkoutData = {
         email: formData.email,
         firstName,
@@ -172,15 +178,56 @@ const OperandiChallengePage: React.FC = () => {
 
       const response = await apiService.createCheckoutSession(checkoutData);
 
-      // Redirect to Stripe checkout
-      if (response.url) {
-        window.location.href = response.url;
+      if (response.success) {
+        // Store order data and show payment form
+        setOrderData({
+          orderId: response.orderId,
+          customerId: response.customerId,
+          amount: response.amount,
+        });
+        setShowPaymentForm(true);
       } else {
-        throw new Error('Failed to create checkout session');
+        throw new Error('Failed to create order');
       }
     } catch (err: any) {
-      console.error('Checkout error:', err);
-      setError(err.message || 'Failed to create checkout session. Please try again.');
+      console.error('Order creation error:', err);
+      setError(err.message || 'Failed to create order. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSquarePayment = async (result: SquarePaymentResult) => {
+    if (!result.success || !result.token || !orderData) {
+      setError(result.error || 'Payment failed');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Generate idempotency key for payment
+      const idempotencyKey = `payment-${orderData.orderId}-${Date.now()}`;
+
+      // Process payment with Square
+      const paymentResponse = await apiService.processSquarePayment({
+        orderId: orderData.orderId,
+        paymentToken: result.token,
+        amount: dollarsToSquareCents(orderData.amount), // Convert to cents
+        idempotencyKey,
+      });
+
+      if (paymentResponse.success) {
+        // Payment successful, handle success
+        await handlePaymentSuccess(orderData.orderId);
+      } else {
+        throw new Error(paymentResponse.message || 'Payment processing failed');
+      }
+    } catch (err: any) {
+      console.error('Payment processing error:', err);
+      setError(err.message || 'Payment processing failed. Please try again.');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -387,215 +434,263 @@ const OperandiChallengePage: React.FC = () => {
           </div>
 
           <div className='bg-white shadow-xl rounded-2xl p-8'>
-            <form onSubmit={handleSubmit} className='space-y-6'>
-              {error && (
-                <div className='bg-red-50 border border-red-200 rounded-lg p-4'>
-                  <p className='text-red-800'>{error}</p>
-                </div>
-              )}
-
-              <div>
-                <label className='block text-sm font-medium text-gray-700 mb-2'>
-                  Full Name <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='text'
-                  value={formData.fullName}
-                  onChange={(e) => handleInputChange('fullName', e.target.value)}
-                  className='w-full px-4 py-3 border border-gray-300 rounded-lg text-black placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                  placeholder='Enter your full name'
-                  required
-                />
-              </div>
-
-              <div>
-                <label className='block text-sm font-medium text-gray-700 mb-2'>
-                  Email Address <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='email'
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  className='w-full px-4 py-3 border border-gray-300 rounded-lg text-black placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                  placeholder='Enter your email address'
-                  required
-                />
-              </div>
-
-              <div>
-                <label className='block text-sm font-medium text-gray-700 mb-2'>Phone Number</label>
-                <input
-                  type='tel'
-                  value={formData.phone}
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
-                  className='w-full px-4 py-3 border border-gray-300 rounded-lg text-black placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                  placeholder='Enter your phone number (optional)'
-                />
-              </div>
-
-              <div>
-                <label className='block text-sm font-medium text-gray-700 mb-2'>
-                  Business/Company Name <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='text'
-                  value={formData.businessName}
-                  onChange={(e) => handleInputChange('businessName', e.target.value)}
-                  className='w-full px-4 py-3 border border-gray-300 rounded-lg text-black placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                  placeholder='Enter your business name'
-                  required
-                />
-              </div>
-
-              {/* Plan Selection */}
-              <div>
-                <label className='block text-sm font-medium text-gray-700 mb-2'>
-                  Subscription Plan <span className='text-red-500'>*</span>
-                </label>
-                <div className='grid grid-cols-2 gap-4'>
-                  <label
-                    className={`relative border-2 rounded-lg p-4 cursor-pointer transition-colors ${
-                      formData.selectedPlan === 'monthly'
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <input
-                      type='radio'
-                      name='selectedPlan'
-                      value='monthly'
-                      checked={formData.selectedPlan === 'monthly'}
-                      onChange={(e) => handleInputChange('selectedPlan', e.target.value)}
-                      className='sr-only'
-                    />
-                    <div className='text-center'>
-                      <div className='text-lg font-semibold text-gray-900'>Monthly</div>
-                      <div className='text-2xl font-bold text-blue-600'>
-                        $98<span className='text-sm font-normal'>/month</span>
-                      </div>
-                      <div className='text-sm text-gray-500'>Billed monthly</div>
-                    </div>
-                    {formData.selectedPlan === 'monthly' && (
-                      <div className='absolute top-2 right-2'>
-                        <svg className='w-5 h-5 text-blue-500' fill='currentColor' viewBox='0 0 20 20'>
-                          <path
-                            fillRule='evenodd'
-                            d='M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z'
-                            clipRule='evenodd'
-                          />
-                        </svg>
-                      </div>
-                    )}
-                  </label>
-
-                  <label
-                    className={`relative border-2 rounded-lg p-4 cursor-pointer transition-colors ${
-                      formData.selectedPlan === 'yearly'
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <input
-                      type='radio'
-                      name='selectedPlan'
-                      value='yearly'
-                      checked={formData.selectedPlan === 'yearly'}
-                      onChange={(e) => handleInputChange('selectedPlan', e.target.value)}
-                      className='sr-only'
-                    />
-                    <div className='text-center'>
-                      <div className='text-lg font-semibold text-gray-900'>Yearly</div>
-                      <div className='text-2xl font-bold text-blue-600'>
-                        $980<span className='text-sm font-normal'>/year</span>
-                      </div>
-                      <div className='text-sm text-green-600 font-medium'>Save $196/year</div>
-                    </div>
-                    {formData.selectedPlan === 'yearly' && (
-                      <div className='absolute top-2 right-2'>
-                        <svg className='w-5 h-5 text-blue-500' fill='currentColor' viewBox='0 0 20 20'>
-                          <path
-                            fillRule='evenodd'
-                            d='M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z'
-                            clipRule='evenodd'
-                          />
-                        </svg>
-                      </div>
-                    )}
-                  </label>
-                </div>
-              </div>
-
-              {/* Promo Code Input in Form */}
-              <div>
-                <label className='block text-sm font-medium text-gray-700 mb-2'>Promo Code (Optional)</label>
-                <input
-                  type='text'
-                  value={formData.promoCode}
-                  onChange={(e) => handlePromoCodeChange(e.target.value.toUpperCase())}
-                  className={`w-full px-4 py-3 border rounded-lg font-mono tracking-wider uppercase focus:ring-2 focus:border-transparent transition-colors placeholder-gray-500 ${
-                    isPromoValid === true
-                      ? 'border-green-300 bg-green-50 text-green-800 focus:ring-green-500'
-                      : isPromoValid === false
-                        ? 'border-red-300 bg-red-50 text-red-800 focus:ring-red-500'
-                        : 'border-gray-300 text-gray-900 focus:ring-blue-500'
-                  }`}
-                  placeholder='Enter your promo code'
-                  required
-                />
-                {isPromoValid === true && (
-                  <p className='text-green-600 text-sm mt-1'>✓ $10 monthly discount applied!</p>
-                )}
-              </div>
-
-              {/* Pricing Summary */}
-              <div className='bg-gray-50 rounded-lg p-4 border'>
-                <h4 className='font-medium text-gray-900 mb-3'>Subscription Summary</h4>
-                <div className='space-y-2 text-sm'>
-                  <div className='flex justify-between'>
-                    <span>{formData.selectedPlan === 'monthly' ? 'Monthly' : 'Yearly'} Subscription</span>
-                    <span>${pricing.basePrice.toFixed(2)}</span>
+            {!showPaymentForm ? (
+              /* Registration Form */
+              <form onSubmit={handleSubmit} className='space-y-6'>
+                {error && (
+                  <div className='bg-red-50 border border-red-200 rounded-lg p-4'>
+                    <p className='text-red-800'>{error}</p>
                   </div>
-                  {pricing.discountAmount > 0 && (
-                    <div className='flex justify-between text-green-600'>
-                      <span>Promo Code Discount</span>
-                      <span>-${pricing.discountAmount.toFixed(2)}</span>
+                )}
+
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>
+                    Full Name <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.fullName}
+                    onChange={(e) => handleInputChange('fullName', e.target.value)}
+                    className='w-full px-4 py-3 border border-gray-300 rounded-lg text-black placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                    placeholder='Enter your full name'
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>
+                    Email Address <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='email'
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    className='w-full px-4 py-3 border border-gray-300 rounded-lg text-black placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                    placeholder='Enter your email address'
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>Phone Number</label>
+                  <input
+                    type='tel'
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange('phone', e.target.value)}
+                    className='w-full px-4 py-3 border border-gray-300 rounded-lg text-black placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                    placeholder='Enter your phone number (optional)'
+                  />
+                </div>
+
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>
+                    Business/Company Name <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.businessName}
+                    onChange={(e) => handleInputChange('businessName', e.target.value)}
+                    className='w-full px-4 py-3 border border-gray-300 rounded-lg text-black placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                    placeholder='Enter your business name'
+                    required
+                  />
+                </div>
+
+                {/* Plan Selection */}
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>
+                    Subscription Plan <span className='text-red-500'>*</span>
+                  </label>
+                  <div className='grid grid-cols-2 gap-4'>
+                    <label
+                      className={`relative border-2 rounded-lg p-4 cursor-pointer transition-colors ${
+                        formData.selectedPlan === 'monthly'
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <input
+                        type='radio'
+                        name='selectedPlan'
+                        value='monthly'
+                        checked={formData.selectedPlan === 'monthly'}
+                        onChange={(e) => handleInputChange('selectedPlan', e.target.value)}
+                        className='sr-only'
+                      />
+                      <div className='text-center'>
+                        <div className='text-lg font-semibold text-gray-900'>Monthly</div>
+                        <div className='text-2xl font-bold text-blue-600'>
+                          $98<span className='text-sm font-normal'>/month</span>
+                        </div>
+                        <div className='text-sm text-gray-500'>Billed monthly</div>
+                      </div>
+                      {formData.selectedPlan === 'monthly' && (
+                        <div className='absolute top-2 right-2'>
+                          <svg className='w-5 h-5 text-blue-500' fill='currentColor' viewBox='0 0 20 20'>
+                            <path
+                              fillRule='evenodd'
+                              d='M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z'
+                              clipRule='evenodd'
+                            />
+                          </svg>
+                        </div>
+                      )}
+                    </label>
+
+                    <label
+                      className={`relative border-2 rounded-lg p-4 cursor-pointer transition-colors ${
+                        formData.selectedPlan === 'yearly'
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <input
+                        type='radio'
+                        name='selectedPlan'
+                        value='yearly'
+                        checked={formData.selectedPlan === 'yearly'}
+                        onChange={(e) => handleInputChange('selectedPlan', e.target.value)}
+                        className='sr-only'
+                      />
+                      <div className='text-center'>
+                        <div className='text-lg font-semibold text-gray-900'>Yearly</div>
+                        <div className='text-2xl font-bold text-blue-600'>
+                          $980<span className='text-sm font-normal'>/year</span>
+                        </div>
+                        <div className='text-sm text-green-600 font-medium'>Save $196/year</div>
+                      </div>
+                      {formData.selectedPlan === 'yearly' && (
+                        <div className='absolute top-2 right-2'>
+                          <svg className='w-5 h-5 text-blue-500' fill='currentColor' viewBox='0 0 20 20'>
+                            <path
+                              fillRule='evenodd'
+                              d='M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z'
+                              clipRule='evenodd'
+                            />
+                          </svg>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                </div>
+
+                {/* Promo Code Input in Form */}
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>Promo Code (Optional)</label>
+                  <input
+                    type='text'
+                    value={formData.promoCode}
+                    onChange={(e) => handlePromoCodeChange(e.target.value.toUpperCase())}
+                    className={`w-full px-4 py-3 border rounded-lg font-mono tracking-wider uppercase focus:ring-2 focus:border-transparent transition-colors placeholder-gray-500 ${
+                      isPromoValid === true
+                        ? 'border-green-300 bg-green-50 text-green-800 focus:ring-green-500'
+                        : isPromoValid === false
+                          ? 'border-red-300 bg-red-50 text-red-800 focus:ring-red-500'
+                          : 'border-gray-300 text-gray-900 focus:ring-blue-500'
+                    }`}
+                    placeholder='Enter your promo code'
+                    required
+                  />
+                  {isPromoValid === true && (
+                    <p className='text-green-600 text-sm mt-1'>✓ $10 monthly discount applied!</p>
+                  )}
+                </div>
+
+                {/* Pricing Summary */}
+                <div className='bg-gray-50 rounded-lg p-4 border'>
+                  <h4 className='font-medium text-gray-900 mb-3'>Subscription Summary</h4>
+                  <div className='space-y-2 text-sm'>
+                    <div className='flex justify-between'>
+                      <span>{formData.selectedPlan === 'monthly' ? 'Monthly' : 'Yearly'} Subscription</span>
+                      <span>${pricing.basePrice.toFixed(2)}</span>
+                    </div>
+                    {pricing.discountAmount > 0 && (
+                      <div className='flex justify-between text-green-600'>
+                        <span>Promo Code Discount</span>
+                        <span>-${pricing.discountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className='border-t pt-2 flex justify-between font-medium text-lg'>
+                      <span>{formData.selectedPlan === 'monthly' ? 'Monthly' : 'Yearly'} Total</span>
+                      <span className={pricing.discountAmount > 0 ? 'text-green-600' : 'text-gray-900'}>
+                        ${pricing.finalPrice.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type='submit'
+                  disabled={isLoading}
+                  className={`w-full py-4 px-6 rounded-lg font-semibold text-white transition-colors ${
+                    isLoading
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+                  }`}
+                >
+                  {isLoading ? (
+                    <div className='flex items-center justify-center'>
+                      <div className='animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3'></div>
+                      Processing...
+                    </div>
+                  ) : (
+                    'Continue to Payment'
+                  )}
+                </button>
+
+                <div className='text-sm text-gray-600 text-center'>
+                  <p>
+                    By subscribing, you agree to our terms of service. You can cancel anytime. We'll contact you within
+                    1-2 business days to set up your account.
+                  </p>
+                </div>
+              </form>
+            ) : (
+              /* Square Payment Form */
+              orderData && (
+                <div className='space-y-6'>
+                  <div className='text-center border-b pb-6'>
+                    <h3 className='text-2xl font-bold text-gray-900 mb-2'>Complete Your Payment</h3>
+                    <p className='text-gray-600'>
+                      Secure payment for your {formData.selectedPlan} subscription to 100K Tracker
+                    </p>
+                  </div>
+
+                  {error && (
+                    <div className='bg-red-50 border border-red-200 rounded-lg p-4'>
+                      <p className='text-red-800'>{error}</p>
                     </div>
                   )}
-                  <div className='border-t pt-2 flex justify-between font-medium text-lg'>
-                    <span>{formData.selectedPlan === 'monthly' ? 'Monthly' : 'Yearly'} Total</span>
-                    <span className={pricing.discountAmount > 0 ? 'text-green-600' : 'text-gray-900'}>
-                      ${pricing.finalPrice.toFixed(2)}
-                    </span>
+
+                  <SquarePaymentForm
+                    config={{
+                      amount: dollarsToSquareCents(orderData.amount),
+                      currency: 'USD',
+                      customerEmail: formData.email,
+                      customerName: formData.fullName,
+                      orderId: orderData.orderId,
+                      metadata: {
+                        selectedPlan: formData.selectedPlan,
+                        promoCode: formData.promoCode,
+                        hasValidPromo: isPromoValid ? 'true' : 'false',
+                      },
+                    }}
+                    onPaymentResult={handleSquarePayment}
+                    disabled={isLoading}
+                  />
+
+                  <div className='text-center'>
+                    <button
+                      onClick={() => setShowPaymentForm(false)}
+                      className='text-blue-600 hover:text-blue-700 underline'
+                      disabled={isLoading}
+                    >
+                      ← Back to order details
+                    </button>
                   </div>
                 </div>
-              </div>
-
-              <button
-                type='submit'
-                disabled={isLoading}
-                className={`w-full py-4 px-6 rounded-lg font-semibold text-white transition-colors ${
-                  isLoading
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
-                }`}
-              >
-                {isLoading ? (
-                  <div className='flex items-center justify-center'>
-                    <div className='animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3'></div>
-                    Processing...
-                  </div>
-                ) : (
-                  `Subscribe Now - $${pricing.finalPrice}/${pricing.period}`
-                )}
-              </button>
-
-              <div className='text-sm text-gray-600 text-center'>
-                <p>
-                  By subscribing, you agree to our terms of service. You can cancel anytime. We'll contact you within
-                  1-2 business days to set up your account.
-                </p>
-              </div>
-            </form>
+              )
+            )}
           </div>
         </div>
       </section>

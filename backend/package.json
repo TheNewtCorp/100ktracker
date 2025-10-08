@@ -23,6 +23,7 @@
     "list-users": "node list-users.js"
   },
   "dependencies": {
+    "@square/web-payments-sdk-types": "^1.78.6",
     "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
@@ -36,7 +37,6 @@
     "playwright": "^1.54.2",
     "sqlite3": "^5.1.7",
     "square": "^43.1.0",
-    "stripe": "^18.5.0",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

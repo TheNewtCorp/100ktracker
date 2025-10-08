@@ -347,15 +347,39 @@ class ApiService {
     email: string;
     firstName: string;
     lastName: string;
+    selectedPlan: string;
     promoCode: string;
-  }): Promise<{ sessionId: string; url: string }> {
+  }): Promise<{
+    success: boolean;
+    orderId: string;
+    customerId: string;
+    amount: number;
+    currency: string;
+    details: any;
+  }> {
     return await this.request('/payments/create-checkout-session', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async handlePaymentSuccess(sessionId: string): Promise<{
+  async processSquarePayment(data: {
+    orderId: string;
+    paymentToken: string;
+    amount: number;
+    idempotencyKey: string;
+  }): Promise<{
+    success: boolean;
+    paymentId?: string;
+    message: string;
+  }> {
+    return await this.request('/payments/process-payment', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async handlePaymentSuccess(orderId: string): Promise<{
     success: boolean;
     message: string;
     customer: {
@@ -367,7 +391,7 @@ class ApiService {
   }> {
     return await this.request('/payments/success', {
       method: 'POST',
-      body: JSON.stringify({ sessionId }),
+      body: JSON.stringify({ orderId }),
     });
   }
 }
