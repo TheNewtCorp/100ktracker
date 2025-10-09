@@ -51,19 +51,8 @@ export const SquarePaymentForm: React.FC<SquarePaymentFormProps> = ({
         });
         console.log('✅ SquarePaymentForm: Card styling configured');
 
-        // Wait a moment for DOM to be ready
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        // Attach card form to DOM
-        if (cardContainerRef.current) {
-          await card.attach('#square-card-container');
-          console.log('✅ SquarePaymentForm: Card form attached to DOM');
-        } else {
-          throw new Error('Card container ref not available');
-        }
-
         setIsLoading(false);
-        console.log('🎉 SquarePaymentForm: Initialization complete!');
+        console.log('🎉 SquarePaymentForm: Card form ready for attachment');
       } catch (err: any) {
         console.error('❌ SquarePaymentForm initialization error:', err);
         if (mounted) {
@@ -96,6 +85,49 @@ export const SquarePaymentForm: React.FC<SquarePaymentFormProps> = ({
       }
     };
   }, []);
+
+  // Separate useEffect to attach the card form after component is fully rendered
+  useEffect(() => {
+    const attachCardForm = async () => {
+      if (!cardRef.current || isLoading) {
+        return;
+      }
+
+      try {
+        console.log('🔗 Attempting to attach card form to DOM...');
+
+        // Wait for DOM to be ready and find the container
+        let attempts = 0;
+        const maxAttempts = 10;
+        let container = null;
+
+        while (attempts < maxAttempts && !container) {
+          container = document.getElementById('square-card-container');
+          if (!container) {
+            console.log(`🔍 Attempt ${attempts + 1}: Container not found, waiting...`);
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            attempts++;
+          }
+        }
+
+        if (!container) {
+          throw new Error('Square card container element not found after multiple attempts');
+        }
+
+        console.log('📍 Found card container, attaching card form...');
+        await cardRef.current.attach('#square-card-container');
+        console.log('✅ SquarePaymentForm: Card form successfully attached to DOM');
+      } catch (err: any) {
+        console.error('❌ Error attaching card form:', err);
+        setError(`Failed to initialize payment form: ${err.message}`);
+      }
+    };
+
+    // Only attempt to attach if we have a card form and component is not loading
+    if (cardRef.current && !isLoading) {
+      attachCardForm();
+    }
+  }, [isLoading]); // Runs when isLoading changes to false
 
   const handlePayment = async () => {
     if (!cardRef.current || isProcessing) return;
