@@ -54,6 +54,19 @@ router.post(
       const discount = hasValidPromo ? (selectedPlan === 'monthly' ? 10 : 130) : 0;
       const finalPrice = basePrice - discount;
 
+      // Only include promo-related metadata if a promo code was actually submitted
+      const promoMetadata =
+        promoCode && promoCode.trim()
+          ? {
+              promoCode: promoCode.trim(),
+              hasValidPromo: hasValidPromo.toString(),
+              discountAmount: discount.toString(),
+            }
+          : {
+              // Include discount amount even without promo for consistency
+              discountAmount: discount.toString(),
+            };
+
       // Create or get customer
       let customerId;
       try {
@@ -149,10 +162,8 @@ router.post(
             email,
             selectedPlan,
             basePrice: basePrice.toString(),
-            discountAmount: discount.toString(),
-            hasValidPromo: hasValidPromo.toString(),
             customerId,
-            ...(promoCode && promoCode.trim() ? { promoCode: promoCode.trim() } : {}),
+            ...promoMetadata,
           },
         },
       };

@@ -348,7 +348,7 @@ class ApiService {
     firstName: string;
     lastName: string;
     selectedPlan: string;
-    promoCode: string;
+    promoCode?: string; // Made optional for double protection
   }): Promise<{
     success: boolean;
     orderId: string;

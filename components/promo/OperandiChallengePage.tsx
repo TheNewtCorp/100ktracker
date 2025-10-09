@@ -168,12 +168,13 @@ const OperandiChallengePage: React.FC = () => {
       }
 
       // Create Square order (but don't process payment yet)
+      // Only include promoCode if it has a value (double protection)
       const checkoutData = {
         email: formData.email,
         firstName,
         lastName,
         selectedPlan: formData.selectedPlan,
-        promoCode: formData.promoCode,
+        ...(formData.promoCode && formData.promoCode.trim() ? { promoCode: formData.promoCode.trim() } : {}),
       };
 
       const response = await apiService.createCheckoutSession(checkoutData);
