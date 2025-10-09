@@ -1,6 +1,16 @@
 // Final comprehensive test of our Square integration
 const { client, locationsApi, customersApi, ordersApi } = require('./square-config');
-const { v4: uuidv4 } = require('uuid');
+const axios = require('axios');
+const crypto = require('crypto');
+
+// Generate UUID v4 using crypto module (Node.js built-in)
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
 async function finalIntegrationTest() {
   console.log('🧪 Running final Square integration test...\n');
@@ -65,7 +75,7 @@ async function finalIntegrationTest() {
     // Test 4: Order operations
     console.log('\n4️⃣ Testing order operations...');
     const testOrder = await ordersApi.create({
-      idempotencyKey: uuidv4(),
+      idempotencyKey: generateUUID(),
       order: {
         locationId: process.env.SQUARE_LOCATION_ID,
         lineItems: [

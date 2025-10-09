@@ -1,15 +1,22 @@
 // Debug the order retrieval issue
 const { ordersApi } = require('./square-config');
 
+// Generate UUID v4 using crypto module (Node.js built-in)
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 async function debugOrderRetrieval() {
   console.log('🔍 Debugging order retrieval...');
 
   try {
     // Test creating an order first
-    const { v4: uuidv4 } = require('uuid');
-
     const orderRequest = {
-      idempotencyKey: uuidv4(),
+      idempotencyKey: generateUUID(),
       order: {
         locationId: process.env.SQUARE_LOCATION_ID,
         lineItems: [
