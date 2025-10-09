@@ -130,17 +130,18 @@ export interface Contact {
   stripe_customer_id?: string;
 }
 
+// New enhanced invoice status system
 export enum InvoiceStatus {
-  Draft = 'draft',
-  Open = 'open',
-  Paid = 'paid',
-  Void = 'void',
-  Uncollectible = 'uncollectible',
+  Created = 'created',
+  Sent = 'sent',
+  Fulfilled = 'fulfilled',
+  Overdue = 'overdue',
+  Cancelled = 'cancelled',
 }
 
 export interface InvoiceItem {
   id?: number;
-  watch_id: number;
+  watch_id?: number;
   description: string;
   quantity: number;
   unit_price: number;
@@ -149,21 +150,49 @@ export interface InvoiceItem {
 
 export interface Invoice {
   id: number;
-  stripe_invoice_id: string;
-  contact_id: number;
+  invoice_number: string; // INV-001 format
+  contact_id?: number;
   status: InvoiceStatus;
   total_amount: number;
   currency: string;
   due_date?: string;
   notes?: string;
   created_at: string;
+  sent_at?: string;
+  fulfilled_at?: string;
   contact_name?: string;
   contact_email?: string;
   items?: InvoiceItem[];
-  stripe_details?: {
-    hosted_invoice_url?: string;
-    invoice_pdf?: string;
-    payment_intent?: string;
+
+  // Square integration fields
+  square_payment_id?: string;
+  pdf_generated_at?: string;
+
+  // Customer info for manual entries
+  customer_info?: {
+    name: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+  };
+}
+
+// PDF generation options
+export interface InvoicePDFOptions {
+  includeHeader: boolean;
+  includeLogo: boolean;
+  template: 'standard' | 'minimal' | 'detailed';
+  primaryColor?: string;
+}
+
+// Square charge data
+export interface SquareChargeData {
+  amount: number;
+  currency: string;
+  invoice_id: number;
+  customer_info?: {
+    name: string;
+    email?: string;
   };
 }
 

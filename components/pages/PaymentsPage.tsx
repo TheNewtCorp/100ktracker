@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import InvoiceCreator from './payments/InvoiceCreator';
 import InvoiceList from './payments/InvoiceList';
 import InvoiceDetails from './payments/InvoiceDetails';
-import PaymentResult from './payments/PaymentResult';
-import { Invoice, InvoiceItem } from '../../types';
+import InvoiceStatusTracker from '../payments/InvoiceStatusTracker';
+import { Invoice, InvoiceItem, InvoiceStatus } from '../../types';
 import { apiService } from '../../services/apiService';
 import { useTheme } from '../../hooks/useTheme';
 
@@ -11,19 +11,11 @@ interface PaymentsPageProps {}
 
 const PaymentsPage: React.FC<PaymentsPageProps> = () => {
   const { theme } = useTheme();
-  const [currentView, setCurrentView] = useState<'list' | 'create' | 'details' | 'payment-result'>('list');
+  const [currentView, setCurrentView] = useState<'list' | 'create' | 'details'>('list');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Check if we're returning from a payment
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('payment_intent') || urlParams.has('redirect_status')) {
-      setCurrentView('payment-result');
-    }
-  }, []);
 
   // Load invoices on component mount
   useEffect(() => {
@@ -48,12 +40,6 @@ const PaymentsPage: React.FC<PaymentsPageProps> = () => {
     try {
       setError(null);
       const response = await apiService.post('/invoices', invoiceData);
-
-      // If we get a hosted invoice URL, open it in a new tab
-      if (response.invoiceUrl) {
-        window.open(response.invoiceUrl, '_blank');
-      }
-
       await loadInvoices(); // Reload the list
       setCurrentView('list');
       return response;
@@ -79,26 +65,48 @@ const PaymentsPage: React.FC<PaymentsPageProps> = () => {
     }
   };
 
-  const handleSendInvoice = async (invoiceId: number) => {
+  const handleStatusUpdate = async (invoiceId: number, newStatus: InvoiceStatus) => {
     try {
       setError(null);
-      await apiService.post(`/invoices/${invoiceId}/send`);
+      await apiService.put(`/invoices/${invoiceId}/status`, { status: newStatus });
       await loadInvoices(); // Reload to get updated status
+
+      // If viewing details of this invoice, update the selected invoice too
+      if (selectedInvoice && selectedInvoice.id === invoiceId) {
+        setSelectedInvoice((prev) => (prev ? { ...prev, status: newStatus } : null));
+      }
     } catch (err: any) {
-      console.error('Error sending invoice:', err);
-      setError(err.message || 'Failed to send invoice');
+      console.error('Error updating invoice status:', err);
+      setError(err.message || 'Failed to update invoice status');
       throw err;
     }
   };
 
-  const handleVoidInvoice = async (invoiceId: number) => {
+  const handlePaymentSuccess = async (invoiceId: number, paymentId: string) => {
     try {
       setError(null);
-      await apiService.post(`/invoices/${invoiceId}/void`);
+      // Update the invoice status to fulfilled and record payment info
+      await apiService.post(`/invoices/${invoiceId}/payment`, {
+        payment_id: paymentId,
+        status: InvoiceStatus.Fulfilled,
+      });
       await loadInvoices(); // Reload to get updated status
+
+      // If viewing details of this invoice, update the selected invoice too
+      if (selectedInvoice && selectedInvoice.id === invoiceId) {
+        setSelectedInvoice((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: InvoiceStatus.Fulfilled,
+                payment_id: paymentId,
+              }
+            : null,
+        );
+      }
     } catch (err: any) {
-      console.error('Error voiding invoice:', err);
-      setError(err.message || 'Failed to void invoice');
+      console.error('Error recording payment:', err);
+      setError(err.message || 'Failed to record payment');
       throw err;
     }
   };
@@ -110,28 +118,23 @@ const PaymentsPage: React.FC<PaymentsPageProps> = () => {
 
       case 'details':
         return selectedInvoice ? (
-          <InvoiceDetails
-            invoice={selectedInvoice}
-            onBack={() => setCurrentView('list')}
-            onSend={handleSendInvoice}
-            onVoid={handleVoidInvoice}
-            error={error}
-          />
+          <div className='space-y-6'>
+            <InvoiceDetails
+              invoice={selectedInvoice}
+              onBack={() => setCurrentView('list')}
+              onSend={(invoiceId) => handleStatusUpdate(invoiceId, InvoiceStatus.Sent)}
+              onVoid={(invoiceId) => handleStatusUpdate(invoiceId, InvoiceStatus.Cancelled)}
+              error={error}
+            />
+            <InvoiceStatusTracker
+              invoice={selectedInvoice}
+              onStatusUpdate={(newStatus: InvoiceStatus, notes?: string) =>
+                handleStatusUpdate(selectedInvoice.id, newStatus)
+              }
+            />
+          </div>
         ) : (
           <div className={theme === 'light' ? 'text-gray-500' : 'text-platinum-silver/60'}>Invoice not found</div>
-        );
-
-      case 'payment-result':
-        return (
-          <PaymentResult
-            onBack={() => {
-              setCurrentView('list');
-              // Clean up URL parameters
-              window.history.replaceState({}, document.title, window.location.pathname);
-              // Reload invoices to get updated status
-              loadInvoices();
-            }}
-          />
         );
 
       case 'list':
@@ -142,8 +145,8 @@ const PaymentsPage: React.FC<PaymentsPageProps> = () => {
             loading={loading}
             onCreateNew={() => setCurrentView('create')}
             onViewDetails={handleViewDetails}
-            onSend={handleSendInvoice}
-            onVoid={handleVoidInvoice}
+            onStatusUpdate={handleStatusUpdate}
+            onPaymentSuccess={handlePaymentSuccess}
             error={error}
           />
         );
@@ -158,7 +161,7 @@ const PaymentsPage: React.FC<PaymentsPageProps> = () => {
           Invoice Management
         </h1>
         <p className={theme === 'light' ? 'text-gray-600' : 'text-platinum-silver/80'}>
-          Create and manage customer invoices using Stripe integration.
+          Create professional invoices with PDF generation and Square payment integration.
         </p>
       </div>
 

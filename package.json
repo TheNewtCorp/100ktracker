@@ -70,6 +70,8 @@
     "fuzzysort": "^2.0.4",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "jspdf": "^3.0.3",
+    "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.541.0",
     "papaparse": "^5.5.3",
     "puppeteer": "^23.10.4",

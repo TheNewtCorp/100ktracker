@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Plus, Search, Filter, Download, CreditCard, Eye, Clock, Calendar } from 'lucide-react';
 import { Invoice, InvoiceStatus } from '../../../types';
 import { useTheme } from '../../../hooks/useTheme';
+import InvoicePDFGenerator from '../../payments/InvoicePDFGenerator';
+import SquareChargeModal from '../../payments/SquareChargeModal';
 
 interface InvoiceListProps {
   invoices: Invoice[];
   loading: boolean;
   onCreateNew: () => void;
   onViewDetails: (invoice: Invoice) => void;
-  onSend: (invoiceId: number) => Promise<void>;
-  onVoid: (invoiceId: number) => Promise<void>;
+  onStatusUpdate: (invoiceId: number, newStatus: InvoiceStatus) => Promise<void>;
+  onPaymentSuccess: (invoiceId: number, paymentId: string) => void;
   error: string | null;
 }
 
@@ -17,45 +20,15 @@ const InvoiceList: React.FC<InvoiceListProps> = ({
   loading,
   onCreateNew,
   onViewDetails,
-  onSend,
-  onVoid,
+  onStatusUpdate,
+  onPaymentSuccess,
   error,
 }) => {
   const { theme } = useTheme();
-
-  const getStatusColor = (status: InvoiceStatus): string => {
-    if (theme === 'light') {
-      switch (status) {
-        case InvoiceStatus.Paid:
-          return 'text-green-700 bg-green-100';
-        case InvoiceStatus.Open:
-          return 'text-yellow-700 bg-yellow-100';
-        case InvoiceStatus.Void:
-          return 'text-red-700 bg-red-100';
-        case InvoiceStatus.Draft:
-          return 'text-blue-700 bg-blue-100';
-        case InvoiceStatus.Uncollectible:
-          return 'text-gray-700 bg-gray-100';
-        default:
-          return 'text-gray-600 bg-gray-100';
-      }
-    } else {
-      switch (status) {
-        case InvoiceStatus.Paid:
-          return 'text-green-400 bg-green-900/20';
-        case InvoiceStatus.Open:
-          return 'text-yellow-400 bg-yellow-900/20';
-        case InvoiceStatus.Void:
-          return 'text-red-400 bg-red-900/20';
-        case InvoiceStatus.Draft:
-          return 'text-blue-400 bg-blue-900/20';
-        case InvoiceStatus.Uncollectible:
-          return 'text-gray-400 bg-gray-900/20';
-        default:
-          return 'text-platinum-silver/60 bg-platinum-silver/10';
-      }
-    }
-  };
+  const isDark = theme === 'dark';
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all');
+  const [selectedInvoiceForCharge, setSelectedInvoiceForCharge] = useState<Invoice | null>(null);
 
   const formatCurrency = (amount: number, currency: string = 'USD'): string => {
     return new Intl.NumberFormat('en-US', {
@@ -66,212 +39,375 @@ const InvoiceList: React.FC<InvoiceListProps> = ({
 
   const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
       month: 'short',
       day: 'numeric',
+      year: 'numeric',
     });
   };
 
-  const handleActionClick = async (action: 'send' | 'void', invoiceId: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      if (action === 'send') {
-        await onSend(invoiceId);
-      } else {
-        await onVoid(invoiceId);
-      }
-    } catch (error) {
-      // Error handling is managed by parent component
+  const getStatusConfig = (status: InvoiceStatus) => {
+    switch (status) {
+      case InvoiceStatus.Created:
+        return {
+          color: isDark ? 'text-blue-400' : 'text-blue-600',
+          bg: isDark ? 'bg-blue-400/20' : 'bg-blue-100',
+          border: isDark ? 'border-blue-400/30' : 'border-blue-300',
+          label: 'Created',
+        };
+      case InvoiceStatus.Sent:
+        return {
+          color: isDark ? 'text-yellow-400' : 'text-yellow-600',
+          bg: isDark ? 'bg-yellow-400/20' : 'bg-yellow-100',
+          border: isDark ? 'border-yellow-400/30' : 'border-yellow-300',
+          label: 'Sent',
+        };
+      case InvoiceStatus.Fulfilled:
+        return {
+          color: isDark ? 'text-green-400' : 'text-green-600',
+          bg: isDark ? 'bg-green-400/20' : 'bg-green-100',
+          border: isDark ? 'border-green-400/30' : 'border-green-300',
+          label: 'Fulfilled',
+        };
+      case InvoiceStatus.Overdue:
+        return {
+          color: isDark ? 'text-red-400' : 'text-red-600',
+          bg: isDark ? 'bg-red-400/20' : 'bg-red-100',
+          border: isDark ? 'border-red-400/30' : 'border-red-300',
+          label: 'Overdue',
+        };
+      case InvoiceStatus.Cancelled:
+        return {
+          color: isDark ? 'text-gray-400' : 'text-gray-600',
+          bg: isDark ? 'bg-gray-400/20' : 'bg-gray-100',
+          border: isDark ? 'border-gray-400/30' : 'border-gray-300',
+          label: 'Cancelled',
+        };
+      default:
+        return {
+          color: isDark ? 'text-platinum-silver/60' : 'text-gray-500',
+          bg: isDark ? 'bg-platinum-silver/10' : 'bg-gray-100',
+          border: isDark ? 'border-platinum-silver/20' : 'border-gray-300',
+          label: 'Unknown',
+        };
     }
+  };
+
+  const filteredInvoices = invoices.filter((invoice) => {
+    const matchesSearch =
+      (invoice.invoice_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (invoice.contact_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (invoice.customer_info?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesStatus = statusFilter === 'all' || invoice.status === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  const getStatsCounts = () => {
+    return {
+      total: invoices.length,
+      created: invoices.filter((i) => i.status === InvoiceStatus.Created).length,
+      sent: invoices.filter((i) => i.status === InvoiceStatus.Sent).length,
+      fulfilled: invoices.filter((i) => i.status === InvoiceStatus.Fulfilled).length,
+      overdue: invoices.filter((i) => i.status === InvoiceStatus.Overdue).length,
+      totalValue: invoices.reduce((sum, inv) => sum + inv.total_amount, 0),
+      pendingValue: invoices
+        .filter((i) => i.status !== InvoiceStatus.Fulfilled && i.status !== InvoiceStatus.Cancelled)
+        .reduce((sum, inv) => sum + inv.total_amount, 0),
+    };
+  };
+
+  const stats = getStatsCounts();
+
+  const handlePaymentSuccess = (paymentId: string) => {
+    if (selectedInvoiceForCharge) {
+      onPaymentSuccess(selectedInvoiceForCharge.id, paymentId);
+      setSelectedInvoiceForCharge(null);
+    }
+  };
+
+  const handlePaymentError = (error: string) => {
+    console.error('Payment error:', error);
   };
 
   if (loading) {
     return (
       <div className='flex items-center justify-center py-12'>
-        <div className={theme === 'light' ? 'text-gray-500' : 'text-platinum-silver/60'}>Loading invoices...</div>
+        <div
+          className={`animate-spin rounded-full h-12 w-12 border-b-2 ${
+            isDark ? 'border-champagne-gold' : 'border-blue-600'
+          }`}
+        ></div>
       </div>
     );
   }
 
   return (
     <div className='space-y-6'>
-      {/* Header with Create Button */}
-      <div className='flex justify-between items-center'>
-        <div>
-          <h2 className={`text-xl font-semibold ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
-            All Invoices
-          </h2>
-          <p className={`text-sm mt-1 ${theme === 'light' ? 'text-gray-600' : 'text-platinum-silver/60'}`}>
-            {invoices.length} invoice{invoices.length !== 1 ? 's' : ''} total
-          </p>
-        </div>
-        <button
-          onClick={onCreateNew}
-          className={`font-medium px-4 py-2 rounded-lg transition-colors ${
-            theme === 'light'
-              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-              : 'bg-champagne-gold hover:bg-champagne-gold/80 text-rich-black'
+      {/* Header with Stats */}
+      <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
+        <div
+          className={`p-4 rounded-lg border ${
+            isDark ? 'bg-charcoal-slate border-champagne-gold/20' : 'bg-white border-gray-200'
           }`}
         >
-          Create Invoice
+          <div className={`text-2xl font-bold ${isDark ? 'text-champagne-gold' : 'text-blue-600'}`}>{stats.total}</div>
+          <div className={`text-sm ${isDark ? 'text-platinum-silver/70' : 'text-gray-600'}`}>Total Invoices</div>
+        </div>
+
+        <div
+          className={`p-4 rounded-lg border ${
+            isDark ? 'bg-charcoal-slate border-champagne-gold/20' : 'bg-white border-gray-200'
+          }`}
+        >
+          <div className={`text-2xl font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+            {formatCurrency(stats.totalValue)}
+          </div>
+          <div className={`text-sm ${isDark ? 'text-platinum-silver/70' : 'text-gray-600'}`}>Total Value</div>
+        </div>
+
+        <div
+          className={`p-4 rounded-lg border ${
+            isDark ? 'bg-charcoal-slate border-champagne-gold/20' : 'bg-white border-gray-200'
+          }`}
+        >
+          <div className={`text-2xl font-bold ${isDark ? 'text-yellow-400' : 'text-yellow-600'}`}>
+            {formatCurrency(stats.pendingValue)}
+          </div>
+          <div className={`text-sm ${isDark ? 'text-platinum-silver/70' : 'text-gray-600'}`}>Pending Amount</div>
+        </div>
+
+        <div
+          className={`p-4 rounded-lg border ${
+            isDark ? 'bg-charcoal-slate border-champagne-gold/20' : 'bg-white border-gray-200'
+          }`}
+        >
+          <div className={`text-2xl font-bold ${isDark ? 'text-red-400' : 'text-red-600'}`}>{stats.overdue}</div>
+          <div className={`text-sm ${isDark ? 'text-platinum-silver/70' : 'text-gray-600'}`}>Overdue</div>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className='flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between'>
+        <div className='flex flex-col sm:flex-row gap-3 flex-1'>
+          {/* Search */}
+          <div className='relative'>
+            <Search
+              size={20}
+              className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${
+                isDark ? 'text-platinum-silver/40' : 'text-gray-400'
+              }`}
+            />
+            <input
+              type='text'
+              placeholder='Search invoices...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className={`pl-10 pr-4 py-2 border rounded-lg w-full sm:w-64 transition-colors focus:outline-none ${
+                isDark
+                  ? 'bg-charcoal-slate border-champagne-gold/20 text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold'
+                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+              }`}
+            />
+          </div>
+
+          {/* Status Filter */}
+          <div className='relative'>
+            <Filter
+              size={16}
+              className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${
+                isDark ? 'text-platinum-silver/40' : 'text-gray-400'
+              }`}
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as InvoiceStatus | 'all')}
+              className={`pl-10 pr-8 py-2 border rounded-lg transition-colors focus:outline-none appearance-none ${
+                isDark
+                  ? 'bg-charcoal-slate border-champagne-gold/20 text-platinum-silver focus:border-champagne-gold'
+                  : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+              }`}
+            >
+              <option value='all'>All Status</option>
+              <option value={InvoiceStatus.Created}>Created ({stats.created})</option>
+              <option value={InvoiceStatus.Sent}>Sent ({stats.sent})</option>
+              <option value={InvoiceStatus.Fulfilled}>Fulfilled ({stats.fulfilled})</option>
+              <option value={InvoiceStatus.Overdue}>Overdue ({stats.overdue})</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Create Button */}
+        <button
+          onClick={onCreateNew}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+            isDark
+              ? 'bg-champagne-gold text-obsidian-black hover:bg-champagne-gold/90'
+              : 'bg-blue-600 text-white hover:bg-blue-700'
+          }`}
+        >
+          <Plus size={20} />
+          New Invoice
         </button>
       </div>
 
-      {/* Invoices List */}
-      {invoices.length === 0 ? (
-        <div className='text-center py-12'>
-          <div className={`mb-4 ${theme === 'light' ? 'text-gray-400' : 'text-platinum-silver/40'}`}>
-            No invoices found
-          </div>
-          <button
-            onClick={onCreateNew}
-            className={`transition-colors ${
-              theme === 'light'
-                ? 'text-blue-600 hover:text-blue-700'
-                : 'text-champagne-gold hover:text-champagne-gold/80'
-            }`}
-          >
-            Create your first invoice
-          </button>
-        </div>
-      ) : (
+      {/* Error Display */}
+      {error && (
         <div
-          className={`rounded-lg overflow-hidden ${
-            theme === 'light' ? 'bg-white border border-gray-200' : 'bg-rich-black/60'
+          className={`p-4 rounded-lg border ${isDark ? 'bg-red-900/20 border-red-500/30' : 'bg-red-50 border-red-200'}`}
+        >
+          <p className={`text-sm ${isDark ? 'text-red-400' : 'text-red-700'}`}>{error}</p>
+        </div>
+      )}
+
+      {/* Invoice Grid */}
+      {filteredInvoices.length === 0 ? (
+        <div
+          className={`text-center py-12 rounded-lg border-2 border-dashed ${
+            isDark ? 'border-champagne-gold/20 text-platinum-silver/60' : 'border-gray-300 text-gray-500'
           }`}
         >
-          <div className='overflow-x-auto'>
-            <table className='w-full'>
-              <thead
-                className={`border-b ${
-                  theme === 'light' ? 'bg-gray-50 border-gray-200' : 'bg-rich-black/40 border-platinum-silver/10'
+          <div className='mb-4'>
+            {searchTerm || statusFilter !== 'all' ? (
+              <>
+                <Filter size={48} className='mx-auto mb-4 opacity-40' />
+                <p className='text-lg font-medium'>No invoices match your filters</p>
+                <p>Try adjusting your search or filter settings</p>
+              </>
+            ) : (
+              <>
+                <Calendar size={48} className='mx-auto mb-4 opacity-40' />
+                <p className='text-lg font-medium'>No invoices yet</p>
+                <p>Create your first invoice to get started</p>
+              </>
+            )}
+          </div>
+          {!searchTerm && statusFilter === 'all' && (
+            <button
+              onClick={onCreateNew}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                isDark
+                  ? 'bg-champagne-gold text-obsidian-black hover:bg-champagne-gold/90'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              <Plus size={16} />
+              Create First Invoice
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className='grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6'>
+          {filteredInvoices.map((invoice) => {
+            const statusConfig = getStatusConfig(invoice.status);
+            const customerName = invoice.contact_name || invoice.customer_info?.name || 'Unknown Customer';
+
+            return (
+              <div
+                key={invoice.id}
+                className={`p-6 rounded-lg border transition-all duration-200 hover:shadow-lg cursor-pointer ${
+                  isDark
+                    ? 'bg-charcoal-slate border-champagne-gold/20 hover:border-champagne-gold/40'
+                    : 'bg-white border-gray-200 hover:border-gray-300'
                 }`}
+                onClick={() => onViewDetails(invoice)}
               >
-                <tr>
-                  <th
-                    className={`text-left py-3 px-4 font-medium ${
-                      theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/80'
-                    }`}
+                {/* Header */}
+                <div className='flex items-start justify-between mb-4'>
+                  <div>
+                    <h3 className={`font-semibold ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+                      {invoice.invoice_number || `INV-${invoice.id}`}
+                    </h3>
+                    <p className={`text-sm ${isDark ? 'text-platinum-silver/70' : 'text-gray-600'}`}>{customerName}</p>
+                  </div>
+                  <div
+                    className={`px-2 py-1 rounded-full border text-xs font-medium ${statusConfig.bg} ${statusConfig.border} ${statusConfig.color}`}
                   >
-                    Customer
-                  </th>
-                  <th
-                    className={`text-left py-3 px-4 font-medium ${
-                      theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/80'
-                    }`}
-                  >
-                    Status
-                  </th>
-                  <th
-                    className={`text-right py-3 px-4 font-medium ${
-                      theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/80'
-                    }`}
-                  >
-                    Amount
-                  </th>
-                  <th
-                    className={`text-left py-3 px-4 font-medium ${
-                      theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/80'
-                    }`}
-                  >
-                    Created
-                  </th>
-                  <th
-                    className={`text-left py-3 px-4 font-medium ${
-                      theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/80'
-                    }`}
-                  >
-                    Due Date
-                  </th>
-                  <th
-                    className={`text-center py-3 px-4 font-medium ${
-                      theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/80'
-                    }`}
-                  >
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.map((invoice) => (
-                  <tr
-                    key={invoice.id}
-                    onClick={() => onViewDetails(invoice)}
-                    className={`border-b cursor-pointer transition-colors ${
-                      theme === 'light'
-                        ? 'border-gray-200 hover:bg-gray-50'
-                        : 'border-platinum-silver/5 hover:bg-platinum-silver/5'
-                    }`}
-                  >
-                    <td className='py-3 px-4'>
-                      <div>
-                        <div className={`font-medium ${theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'}`}>
-                          {invoice.contact_name || 'Unknown Customer'}
-                        </div>
-                        <div className={`text-sm ${theme === 'light' ? 'text-gray-600' : 'text-platinum-silver/60'}`}>
-                          {invoice.contact_email}
-                        </div>
-                      </div>
-                    </td>
-                    <td className='py-3 px-4'>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(invoice.status)}`}>
-                        {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+                    {statusConfig.label}
+                  </div>
+                </div>
+
+                {/* Amount */}
+                <div className='mb-4'>
+                  <span className={`text-2xl font-bold ${isDark ? 'text-champagne-gold' : 'text-blue-600'}`}>
+                    {formatCurrency(invoice.total_amount, invoice.currency)}
+                  </span>
+                </div>
+
+                {/* Dates */}
+                <div className='space-y-1 mb-4'>
+                  <div className='flex items-center gap-2 text-sm'>
+                    <Clock size={14} className={isDark ? 'text-platinum-silver/40' : 'text-gray-400'} />
+                    <span className={isDark ? 'text-platinum-silver/70' : 'text-gray-600'}>
+                      Created: {formatDate(invoice.created_at)}
+                    </span>
+                  </div>
+                  {invoice.due_date && (
+                    <div className='flex items-center gap-2 text-sm'>
+                      <Calendar size={14} className={isDark ? 'text-platinum-silver/40' : 'text-gray-400'} />
+                      <span className={isDark ? 'text-platinum-silver/70' : 'text-gray-600'}>
+                        Due: {formatDate(invoice.due_date)}
                       </span>
-                    </td>
-                    <td
-                      className={`py-3 px-4 text-right font-mono ${
-                        theme === 'light' ? 'text-gray-900' : 'text-platinum-silver'
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className='flex gap-2' onClick={(e) => e.stopPropagation()}>
+                  {/* PDF Download */}
+                  <div className='flex-1'>
+                    <InvoicePDFGenerator invoice={invoice} className='w-full' />
+                  </div>
+
+                  {/* Charge Button */}
+                  {invoice.status !== InvoiceStatus.Fulfilled && invoice.status !== InvoiceStatus.Cancelled && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedInvoiceForCharge(invoice);
+                      }}
+                      className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        isDark
+                          ? 'bg-green-600 text-white hover:bg-green-700'
+                          : 'bg-green-600 text-white hover:bg-green-700'
                       }`}
                     >
-                      {formatCurrency(invoice.total_amount, invoice.currency)}
-                    </td>
-                    <td className={`py-3 px-4 ${theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/80'}`}>
-                      {formatDate(invoice.created_at)}
-                    </td>
-                    <td className={`py-3 px-4 ${theme === 'light' ? 'text-gray-700' : 'text-platinum-silver/80'}`}>
-                      {invoice.due_date ? formatDate(invoice.due_date) : '-'}
-                    </td>
-                    <td className='py-3 px-4'>
-                      <div className='flex justify-center space-x-2'>
-                        {(invoice.status === InvoiceStatus.Draft || invoice.status === InvoiceStatus.Open) && (
-                          <button
-                            onClick={(e) => handleActionClick('send', invoice.id, e)}
-                            className={`text-sm transition-colors ${
-                              theme === 'light'
-                                ? 'text-blue-600 hover:text-blue-700'
-                                : 'text-blue-400 hover:text-blue-300'
-                            }`}
-                            title='Send Invoice'
-                          >
-                            Send
-                          </button>
-                        )}
-                        {(invoice.status === InvoiceStatus.Draft || invoice.status === InvoiceStatus.Open) && (
-                          <button
-                            onClick={(e) => handleActionClick('void', invoice.id, e)}
-                            className={`text-sm transition-colors ${
-                              theme === 'light' ? 'text-red-600 hover:text-red-700' : 'text-red-400 hover:text-red-300'
-                            }`}
-                            title='Void Invoice'
-                          >
-                            Void
-                          </button>
-                        )}
-                        {(invoice.status === InvoiceStatus.Paid || invoice.status === InvoiceStatus.Void) && (
-                          <span
-                            className={`text-sm ${theme === 'light' ? 'text-gray-400' : 'text-platinum-silver/40'}`}
-                          >
-                            -
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      <CreditCard size={14} />
+                      Charge
+                    </button>
+                  )}
+
+                  {/* View Details */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewDetails(invoice);
+                    }}
+                    className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium border transition-all duration-200 ${
+                      isDark
+                        ? 'border-champagne-gold/30 text-champagne-gold hover:bg-champagne-gold/10'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Eye size={14} />
+                    View
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
+      )}
+
+      {/* Square Charge Modal */}
+      {selectedInvoiceForCharge && (
+        <SquareChargeModal
+          invoice={selectedInvoiceForCharge}
+          isOpen={!!selectedInvoiceForCharge}
+          onClose={() => setSelectedInvoiceForCharge(null)}
+          onPaymentSuccess={handlePaymentSuccess}
+          onPaymentError={handlePaymentError}
+        />
       )}
     </div>
   );
