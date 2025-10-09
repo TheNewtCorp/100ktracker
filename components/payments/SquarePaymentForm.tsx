@@ -30,32 +30,53 @@ export const SquarePaymentForm: React.FC<SquarePaymentFormProps> = ({
         setIsLoading(true);
         setError(null);
 
+        console.log('🔄 SquarePaymentForm: Starting initialization...');
+
         // Load Square SDK
         const payments = await loadSquareSDK();
 
         if (!mounted) return;
 
         paymentsRef.current = payments;
+        console.log('✅ SquarePaymentForm: Square SDK loaded');
 
         // Initialize card form
         const card = await payments.card();
         cardRef.current = card;
+        console.log('✅ SquarePaymentForm: Card form created');
 
         // Configure styling
         card.configure({
           style: SQUARE_FORM_STYLES,
         });
+        console.log('✅ SquarePaymentForm: Card styling configured');
+
+        // Wait a moment for DOM to be ready
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         // Attach card form to DOM
         if (cardContainerRef.current) {
           await card.attach('#square-card-container');
+          console.log('✅ SquarePaymentForm: Card form attached to DOM');
+        } else {
+          throw new Error('Card container ref not available');
         }
 
         setIsLoading(false);
+        console.log('🎉 SquarePaymentForm: Initialization complete!');
       } catch (err: any) {
-        console.error('Square initialization error:', err);
+        console.error('❌ SquarePaymentForm initialization error:', err);
         if (mounted) {
-          setError(err.message || 'Failed to load payment form');
+          let errorMessage = err.message || 'Failed to load payment form';
+
+          // Provide more specific error messages
+          if (err.message?.includes('MISSING')) {
+            errorMessage = 'Payment system configuration error. Please contact support.';
+          } else if (err.message?.includes('failed to load')) {
+            errorMessage = 'Unable to load payment system. Please check your internet connection and try again.';
+          }
+
+          setError(errorMessage);
           setIsLoading(false);
         }
       }

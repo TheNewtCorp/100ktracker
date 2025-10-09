@@ -148,11 +148,11 @@ router.post(
             lastName,
             email,
             selectedPlan,
-            promoCode: promoCode || '',
             basePrice: basePrice.toString(),
             discountAmount: discount.toString(),
             hasValidPromo: hasValidPromo.toString(),
             customerId,
+            ...(promoCode && promoCode.trim() ? { promoCode: promoCode.trim() } : {}),
           },
         },
       };

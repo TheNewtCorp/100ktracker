@@ -53,13 +53,19 @@ export const SQUARE_CONFIG = {
   applicationId:
     import.meta.env.VITE_SQUARE_APPLICATION_ID ||
     (() => {
-      console.error('VITE_SQUARE_APPLICATION_ID environment variable is required');
+      console.error('❌ VITE_SQUARE_APPLICATION_ID environment variable is required');
+      console.error('Available env vars:', {
+        NODE_ENV: import.meta.env.NODE_ENV,
+        MODE: import.meta.env.MODE,
+        VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+        envVars: Object.keys(import.meta.env).filter((key) => key.startsWith('VITE_')),
+      });
       return 'MISSING_SQUARE_APP_ID';
     })(),
   locationId:
     import.meta.env.VITE_SQUARE_LOCATION_ID ||
     (() => {
-      console.error('VITE_SQUARE_LOCATION_ID environment variable is required');
+      console.error('❌ VITE_SQUARE_LOCATION_ID environment variable is required');
       return 'MISSING_SQUARE_LOCATION_ID';
     })(),
   environment: (import.meta.env.VITE_SQUARE_ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
@@ -74,22 +80,34 @@ const SQUARE_SDK_URL =
 // Load Square SDK dynamically
 export const loadSquareSDK = (): Promise<SquarePayments> => {
   return new Promise((resolve, reject) => {
+    console.log('🔄 Loading Square SDK...', {
+      config: SQUARE_CONFIG,
+      sdkUrl: SQUARE_SDK_URL,
+    });
+
     // Validate required configuration
     if (SQUARE_CONFIG.applicationId.includes('MISSING') || SQUARE_CONFIG.locationId.includes('MISSING')) {
-      reject(new Error('Square configuration is incomplete. Please check your environment variables.'));
+      const error = new Error('Square configuration is incomplete. Please check your environment variables.');
+      console.error('❌ Square configuration validation failed:', error);
+      reject(error);
       return;
     }
 
     // Check if Square is already loaded
     if (window.Square) {
+      console.log('✅ Square SDK already loaded, initializing payments...');
       try {
         const payments = window.Square.payments(SQUARE_CONFIG.applicationId, SQUARE_CONFIG.locationId);
+        console.log('✅ Square payments initialized successfully');
         resolve(payments);
       } catch (error) {
+        console.error('❌ Error initializing Square payments:', error);
         reject(error);
       }
       return;
     }
+
+    console.log('📦 Loading Square SDK from:', SQUARE_SDK_URL);
 
     // Create script element
     const script = document.createElement('script');
@@ -97,24 +115,32 @@ export const loadSquareSDK = (): Promise<SquarePayments> => {
     script.async = true;
 
     script.onload = () => {
+      console.log('✅ Square SDK script loaded successfully');
       try {
         if (window.Square) {
+          console.log('🔧 Initializing Square payments...');
           const payments = window.Square.payments(SQUARE_CONFIG.applicationId, SQUARE_CONFIG.locationId);
+          console.log('✅ Square payments initialized successfully');
           resolve(payments);
         } else {
-          reject(new Error('Square SDK failed to load'));
+          const error = new Error('Square SDK failed to load - window.Square not available');
+          console.error('❌ Square SDK load failed:', error);
+          reject(error);
         }
       } catch (error) {
+        console.error('❌ Error during Square SDK initialization:', error);
         reject(error);
       }
     };
 
-    script.onerror = () => {
+    script.onerror = (error) => {
+      console.error('❌ Failed to load Square SDK script:', error);
       reject(new Error('Failed to load Square SDK'));
     };
 
     // Add to document head
     document.head.appendChild(script);
+    console.log('📝 Square SDK script added to document head');
   });
 };
 
