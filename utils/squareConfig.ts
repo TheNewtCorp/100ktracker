@@ -50,9 +50,19 @@ declare global {
 
 // Square configuration for frontend
 export const SQUARE_CONFIG = {
-  applicationId: import.meta.env.VITE_SQUARE_APPLICATION_ID || 'sq0idp-hjbD8vmMtxeyyzaua0HwYA',
-  locationId: import.meta.env.VITE_SQUARE_LOCATION_ID || 'LGRMFSXSBW08Y',
-  environment: (import.meta.env.VITE_SQUARE_ENVIRONMENT || 'production') as 'sandbox' | 'production',
+  applicationId:
+    import.meta.env.VITE_SQUARE_APPLICATION_ID ||
+    (() => {
+      console.error('VITE_SQUARE_APPLICATION_ID environment variable is required');
+      return 'MISSING_SQUARE_APP_ID';
+    })(),
+  locationId:
+    import.meta.env.VITE_SQUARE_LOCATION_ID ||
+    (() => {
+      console.error('VITE_SQUARE_LOCATION_ID environment variable is required');
+      return 'MISSING_SQUARE_LOCATION_ID';
+    })(),
+  environment: (import.meta.env.VITE_SQUARE_ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
 };
 
 // Square SDK script URL
@@ -64,6 +74,12 @@ const SQUARE_SDK_URL =
 // Load Square SDK dynamically
 export const loadSquareSDK = (): Promise<SquarePayments> => {
   return new Promise((resolve, reject) => {
+    // Validate required configuration
+    if (SQUARE_CONFIG.applicationId.includes('MISSING') || SQUARE_CONFIG.locationId.includes('MISSING')) {
+      reject(new Error('Square configuration is incomplete. Please check your environment variables.'));
+      return;
+    }
+
     // Check if Square is already loaded
     if (window.Square) {
       try {

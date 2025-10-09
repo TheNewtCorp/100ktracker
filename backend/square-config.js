@@ -3,18 +3,28 @@ require('dotenv').config();
 
 const { SquareClient } = require('square');
 
+// Validate required environment variables
+const requiredEnvVars = ['SQUARE_ACCESS_TOKEN', 'SQUARE_APPLICATION_ID', 'SQUARE_LOCATION_ID'];
+
+const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
+if (missingVars.length > 0) {
+  console.warn('⚠️  Missing Square environment variables:', missingVars.join(', '));
+  console.warn('⚠️  Square payment processing will not work until these are configured.');
+}
+
 // Initialize Square client according to official documentation
 const client = new SquareClient({
-  token: process.env.SQUARE_ACCESS_TOKEN,
+  token: process.env.SQUARE_ACCESS_TOKEN || 'MISSING_SQUARE_ACCESS_TOKEN',
   // Production environment is default
   // API version is latest by default (can override per request)
 });
 
 // Square configuration
 const SQUARE_CONFIG = {
-  applicationId: process.env.SQUARE_APPLICATION_ID,
-  accessToken: process.env.SQUARE_ACCESS_TOKEN,
-  environment: process.env.SQUARE_ENVIRONMENT || 'production',
+  applicationId: process.env.SQUARE_APPLICATION_ID || 'MISSING_SQUARE_APPLICATION_ID',
+  accessToken: process.env.SQUARE_ACCESS_TOKEN || 'MISSING_SQUARE_ACCESS_TOKEN',
+  locationId: process.env.SQUARE_LOCATION_ID || 'MISSING_SQUARE_LOCATION_ID',
+  environment: process.env.SQUARE_ENVIRONMENT || 'sandbox',
   currency: 'USD',
   country: 'US',
 

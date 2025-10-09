@@ -479,6 +479,7 @@ const OperandiChallengePage: React.FC = () => {
                     onChange={(e) => handleInputChange('phone', e.target.value)}
                     className='w-full px-4 py-3 border border-gray-300 rounded-lg text-black placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                     placeholder='Enter your phone number (optional)'
+                    required
                   />
                 </div>
 
@@ -492,7 +493,6 @@ const OperandiChallengePage: React.FC = () => {
                     onChange={(e) => handleInputChange('businessName', e.target.value)}
                     className='w-full px-4 py-3 border border-gray-300 rounded-lg text-black placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                     placeholder='Enter your business name'
-                    required
                   />
                 </div>
 
@@ -589,7 +589,6 @@ const OperandiChallengePage: React.FC = () => {
                           : 'border-gray-300 text-gray-900 focus:ring-blue-500'
                     }`}
                     placeholder='Enter your promo code'
-                    required
                   />
                   {isPromoValid === true && (
                     <p className='text-green-600 text-sm mt-1'>✓ $10 monthly discount applied!</p>
