@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, CreditCard, Loader2, DollarSign, User, Mail } from 'lucide-react';
 import { Invoice, SquareChargeData } from '../../types';
 import { useTheme } from '../../hooks/useTheme';
-import { loadSquareSDK } from '../../utils/squareConfig';
+import { loadSquareSDK, getSquareConfig, UserSquareConfig } from '../../utils/squareConfig';
 import { apiService } from '../../services/apiService';
 
 interface SquareChargeModalProps {
@@ -65,7 +65,26 @@ const SquareChargeModal: React.FC<SquareChargeModalProps> = ({
 
     try {
       console.log('🔄 Initializing Square SDK for invoice charging...');
-      const sdk = await loadSquareSDK();
+
+      // Fetch user's Square configuration from API
+      const response = await apiService.get('/account/square');
+      if (!response.hasSquareConfig) {
+        throw new Error('Square configuration not found. Please configure Square in Account Settings.');
+      }
+
+      const userConfig: UserSquareConfig = {
+        applicationId: response.applicationId,
+        locationId: response.locationId,
+        environment: response.environment,
+      };
+
+      // Get Square configuration with user data
+      const squareConfig = getSquareConfig({ context: 'user', userConfig });
+      if (!squareConfig) {
+        throw new Error('Square configuration not found. Please configure Square in Account Settings.');
+      }
+
+      const sdk = await loadSquareSDK({ context: 'user', userConfig });
       setSquareSDK(sdk);
 
       // Create card form

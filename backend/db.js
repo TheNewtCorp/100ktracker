@@ -172,6 +172,7 @@ function createUserTable() {
                   Promise.all([
                     migrateToSquareColumns(),
                     migrateStripeColumns(),
+                    migrateSquareColumns(),
                     migrateInvoicesTableColumns(),
                     migrateInvoiceContactConstraint(),
                     migrateSubscriptionColumns(),
@@ -193,6 +194,7 @@ function createUserTable() {
             Promise.all([
               migrateToSquareColumns(),
               migrateStripeColumns(),
+              migrateSquareColumns(),
               migrateInvoicesTableColumns(),
               migrateInvoiceContactConstraint(),
               migrateSubscriptionColumns(),
@@ -387,6 +389,102 @@ function migrateStripeColumns() {
             .catch(reject);
         }
       });
+    });
+  });
+}
+
+// Migrate existing databases to add Square columns
+function migrateSquareColumns() {
+  return new Promise((resolve, reject) => {
+    // Check if square columns exist
+    db.all('PRAGMA table_info(users)', (err, columns) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      const hasSquareApplicationId = columns.some((col) => col.name === 'square_application_id');
+      const hasSquareLocationId = columns.some((col) => col.name === 'square_location_id');
+      const hasSquareAccessToken = columns.some((col) => col.name === 'square_access_token');
+      const hasSquareEnvironment = columns.some((col) => col.name === 'square_environment');
+
+      const migrations = [];
+
+      if (!hasSquareApplicationId) {
+        migrations.push(
+          new Promise((resolveCol, rejectCol) => {
+            db.run('ALTER TABLE users ADD COLUMN square_application_id TEXT', (err) => {
+              if (err) {
+                console.error('Error adding square_application_id column:', err.message);
+                rejectCol(err);
+              } else {
+                console.log('Added square_application_id column to users table');
+                resolveCol();
+              }
+            });
+          }),
+        );
+      }
+
+      if (!hasSquareLocationId) {
+        migrations.push(
+          new Promise((resolveCol, rejectCol) => {
+            db.run('ALTER TABLE users ADD COLUMN square_location_id TEXT', (err) => {
+              if (err) {
+                console.error('Error adding square_location_id column:', err.message);
+                rejectCol(err);
+              } else {
+                console.log('Added square_location_id column to users table');
+                resolveCol();
+              }
+            });
+          }),
+        );
+      }
+
+      if (!hasSquareAccessToken) {
+        migrations.push(
+          new Promise((resolveCol, rejectCol) => {
+            db.run('ALTER TABLE users ADD COLUMN square_access_token TEXT', (err) => {
+              if (err) {
+                console.error('Error adding square_access_token column:', err.message);
+                rejectCol(err);
+              } else {
+                console.log('Added square_access_token column to users table');
+                resolveCol();
+              }
+            });
+          }),
+        );
+      }
+
+      if (!hasSquareEnvironment) {
+        migrations.push(
+          new Promise((resolveCol, rejectCol) => {
+            db.run("ALTER TABLE users ADD COLUMN square_environment TEXT DEFAULT 'sandbox'", (err) => {
+              if (err) {
+                console.error('Error adding square_environment column:', err.message);
+                rejectCol(err);
+              } else {
+                console.log('Added square_environment column to users table');
+                resolveCol();
+              }
+            });
+          }),
+        );
+      }
+
+      if (migrations.length === 0) {
+        console.log('Square columns already exist in users table');
+        resolve();
+      } else {
+        Promise.all(migrations)
+          .then(() => {
+            console.log('Square columns migration completed successfully');
+            resolve();
+          })
+          .catch(reject);
+      }
     });
   });
 }

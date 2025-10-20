@@ -5,32 +5,31 @@ import { useTheme } from '../../../hooks/useTheme';
 interface InvoiceDetailsProps {
   invoice: Invoice;
   onBack: () => void;
-  onSend: (invoiceId: number) => Promise<void>;
   onVoid: (invoiceId: number) => Promise<void>;
   error: string | null;
 }
 
-const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({ invoice, onBack, onSend, onVoid, error }) => {
+const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({ invoice, onBack, onVoid, error }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [loading, setLoading] = useState(false);
 
   const getStatusColor = (status: InvoiceStatus): string => {
     switch (status) {
-      case InvoiceStatus.Paid:
+      case InvoiceStatus.Fulfilled:
         return isDark
           ? 'text-green-400 bg-green-900/20 border-green-500/30'
           : 'text-green-700 bg-green-100 border-green-300';
-      case InvoiceStatus.Open:
+      case InvoiceStatus.Sent:
         return isDark
           ? 'text-yellow-400 bg-yellow-900/20 border-yellow-500/30'
           : 'text-yellow-700 bg-yellow-100 border-yellow-300';
-      case InvoiceStatus.Void:
+      case InvoiceStatus.Cancelled:
         return isDark ? 'text-red-400 bg-red-900/20 border-red-500/30' : 'text-red-700 bg-red-100 border-red-300';
-      case InvoiceStatus.Draft:
+      case InvoiceStatus.Created:
         return isDark ? 'text-blue-400 bg-blue-900/20 border-blue-500/30' : 'text-blue-700 bg-blue-100 border-blue-300';
-      case InvoiceStatus.Uncollectible:
-        return isDark ? 'text-gray-400 bg-gray-900/20 border-gray-500/30' : 'text-gray-600 bg-gray-100 border-gray-300';
+      case InvoiceStatus.Overdue:
+        return isDark ? 'text-red-400 bg-red-900/20 border-red-500/30' : 'text-red-600 bg-red-100 border-red-300';
       default:
         return isDark
           ? 'text-platinum-silver/60 bg-platinum-silver/10 border-platinum-silver/20'
@@ -53,14 +52,10 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({ invoice, onBack, onSend
     });
   };
 
-  const handleAction = async (action: 'send' | 'void') => {
+  const handleAction = async (action: 'void') => {
     try {
       setLoading(true);
-      if (action === 'send') {
-        await onSend(invoice.id);
-      } else {
-        await onVoid(invoice.id);
-      }
+      await onVoid(invoice.id);
     } catch (err) {
       // Error handling managed by parent
     } finally {
@@ -68,8 +63,7 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({ invoice, onBack, onSend
     }
   };
 
-  const canSend = invoice.status === InvoiceStatus.Draft || invoice.status === InvoiceStatus.Open;
-  const canVoid = invoice.status === InvoiceStatus.Draft || invoice.status === InvoiceStatus.Open;
+  const canVoid = invoice.status === InvoiceStatus.Created || invoice.status === InvoiceStatus.Sent;
 
   return (
     <div className='max-w-4xl mx-auto'>
@@ -94,19 +88,6 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({ invoice, onBack, onSend
             </p>
           </div>
           <div className='flex space-x-3'>
-            {canSend && (
-              <button
-                onClick={() => handleAction('send')}
-                disabled={loading}
-                className={
-                  isDark
-                    ? 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white font-medium px-4 py-2 rounded-lg transition-colors'
-                    : 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium px-4 py-2 rounded-lg transition-colors'
-                }
-              >
-                {loading ? 'Sending...' : 'Send Invoice'}
-              </button>
-            )}
             {canVoid && (
               <button
                 onClick={() => handleAction('void')}
@@ -119,20 +100,6 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({ invoice, onBack, onSend
               >
                 {loading ? 'Voiding...' : 'Void Invoice'}
               </button>
-            )}
-            {invoice.stripe_details?.hosted_invoice_url && (
-              <a
-                href={invoice.stripe_details.hosted_invoice_url}
-                target='_blank'
-                rel='noopener noreferrer'
-                className={
-                  isDark
-                    ? 'bg-champagne-gold hover:bg-champagne-gold/80 text-rich-black font-medium px-4 py-2 rounded-lg transition-colors'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors'
-                }
-              >
-                View in Stripe
-              </a>
             )}
           </div>
         </div>
@@ -266,49 +233,41 @@ const InvoiceDetails: React.FC<InvoiceDetailsProps> = ({ invoice, onBack, onSend
           </div>
         )}
 
-        {/* Stripe Information */}
-        {invoice.stripe_details && (
+        {/* Payment Information */}
+        {(invoice.payment_processor || invoice.payment_id || invoice.stripe_invoice_id) && (
           <div className={`rounded-lg p-6 ${isDark ? 'bg-rich-black/60' : 'bg-gray-50 border border-gray-200'}`}>
             <h3 className={`text-lg font-medium mb-4 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
               Payment Information
             </h3>
 
             <div className='space-y-3'>
-              {invoice.stripe_details.hosted_invoice_url && (
+              {invoice.payment_processor && (
                 <div>
-                  <span className={isDark ? 'text-platinum-silver/80' : 'text-gray-600'}>Customer Portal:</span>
+                  <span className={isDark ? 'text-platinum-silver/80' : 'text-gray-600'}>Payment Processor:</span>
                   <br />
-                  <a
-                    href={invoice.stripe_details.hosted_invoice_url}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className={`transition-colors break-all ${isDark ? 'text-champagne-gold hover:text-champagne-gold/80' : 'text-blue-600 hover:text-blue-500'}`}
-                  >
-                    {invoice.stripe_details.hosted_invoice_url}
-                  </a>
+                  <span className={`capitalize ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+                    {invoice.payment_processor}
+                  </span>
                 </div>
               )}
 
-              {invoice.stripe_details.invoice_pdf && (
+              {invoice.payment_id && (
                 <div>
-                  <span className={isDark ? 'text-platinum-silver/80' : 'text-gray-600'}>PDF Download:</span>
+                  <span className={isDark ? 'text-platinum-silver/80' : 'text-gray-600'}>Payment ID:</span>
                   <br />
-                  <a
-                    href={invoice.stripe_details.invoice_pdf}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className={`transition-colors ${isDark ? 'text-champagne-gold hover:text-champagne-gold/80' : 'text-blue-600 hover:text-blue-500'}`}
-                  >
-                    Download PDF
-                  </a>
+                  <span className={`font-mono text-sm ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+                    {invoice.payment_id}
+                  </span>
                 </div>
               )}
 
-              <div
-                className={`text-xs pt-2 border-t ${isDark ? 'text-platinum-silver/60 border-platinum-silver/10' : 'text-gray-500 border-gray-200'}`}
-              >
-                Stripe Invoice ID: {invoice.stripe_invoice_id}
-              </div>
+              {invoice.stripe_invoice_id && (
+                <div
+                  className={`text-xs pt-2 border-t ${isDark ? 'text-platinum-silver/60 border-platinum-silver/10' : 'text-gray-500 border-gray-200'}`}
+                >
+                  Legacy Stripe Invoice ID: {invoice.stripe_invoice_id}
+                </div>
+              )}
             </div>
           </div>
         )}

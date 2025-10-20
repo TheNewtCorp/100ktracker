@@ -167,6 +167,13 @@ export interface Invoice {
   // Square integration fields
   square_payment_id?: string;
   pdf_generated_at?: string;
+  square_invoice_id?: string;
+  payment_processor?: string;
+  payment_id?: string;
+  payment_status?: string;
+
+  // Legacy Stripe support
+  stripe_invoice_id?: string;
 
   // Customer info for manual entries
   customer_info?: {

@@ -6,10 +6,16 @@ import { useTheme } from '../../hooks/useTheme';
 interface InvoiceStatusTrackerProps {
   invoice: Invoice;
   onStatusUpdate: (newStatus: InvoiceStatus, notes?: string) => Promise<void>;
+  onNotesUpdate?: (notes: string) => Promise<void>;
   className?: string;
 }
 
-const InvoiceStatusTracker: React.FC<InvoiceStatusTrackerProps> = ({ invoice, onStatusUpdate, className = '' }) => {
+const InvoiceStatusTracker: React.FC<InvoiceStatusTrackerProps> = ({
+  invoice,
+  onStatusUpdate,
+  onNotesUpdate,
+  className = '',
+}) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [isUpdating, setIsUpdating] = useState(false);
@@ -93,6 +99,22 @@ const InvoiceStatusTracker: React.FC<InvoiceStatusTrackerProps> = ({ invoice, on
     }
   };
 
+  const handleNotesOnlyUpdate = async () => {
+    if (!onNotesUpdate || !updateNotes.trim()) return;
+
+    setIsUpdating(true);
+
+    try {
+      await onNotesUpdate(updateNotes);
+      setUpdateNotes('');
+      setShowDropdown(false);
+    } catch (error) {
+      console.error('Error updating notes:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const formatDate = (dateString?: string): string => {
     if (!dateString) return 'Not set';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -105,6 +127,17 @@ const InvoiceStatusTracker: React.FC<InvoiceStatusTrackerProps> = ({ invoice, on
   };
 
   const currentConfig = statusConfig[invoice.status];
+
+  if (!currentConfig) {
+    console.error(`No statusConfig found for status: ${invoice.status}`);
+    // Return a fallback or error state
+    return (
+      <div className={`${className} p-4 rounded-lg border border-red-300 bg-red-100`}>
+        <div className='text-red-600'>Error: Unknown invoice status "{invoice.status}"</div>
+      </div>
+    );
+  }
+
   const Icon = currentConfig.icon;
   const nextStatuses = getNextPossibleStatuses();
 
@@ -236,6 +269,21 @@ const InvoiceStatusTracker: React.FC<InvoiceStatusTrackerProps> = ({ invoice, on
                         : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
                     }`}
                   />
+                  {onNotesUpdate && updateNotes.trim() && (
+                    <div className='mt-2 flex justify-end'>
+                      <button
+                        onClick={handleNotesOnlyUpdate}
+                        disabled={isUpdating}
+                        className={`text-sm px-3 py-1 rounded transition-colors ${
+                          isDark
+                            ? 'bg-champagne-gold/20 text-champagne-gold hover:bg-champagne-gold/30 disabled:bg-champagne-gold/10 disabled:text-champagne-gold/50'
+                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:bg-blue-50 disabled:text-blue-400'
+                        }`}
+                      >
+                        {isUpdating ? 'Saving...' : 'Save Notes Only'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

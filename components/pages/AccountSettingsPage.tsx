@@ -29,13 +29,14 @@ interface AccountSettingsPageProps {
 const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onUserInfoUpdate, onBack }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'subscription' | 'payment'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'subscription' | 'payment' | 'square'>('profile');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showStripeSecretKey, setShowStripeSecretKey] = useState(false);
+  const [showSquareAccessToken, setShowSquareAccessToken] = useState(false);
 
   // Form states
   const [profileForm, setProfileForm] = useState({
@@ -56,6 +57,15 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
 
   const [hasStripeConfig, setHasStripeConfig] = useState(false);
 
+  const [squareForm, setSquareForm] = useState({
+    applicationId: '',
+    locationId: '',
+    accessToken: '',
+    environment: 'sandbox' as 'sandbox' | 'production',
+  });
+
+  const [hasSquareConfig, setHasSquareConfig] = useState(false);
+
   // Subscription state
   const [subscription, setSubscription] = useState<any>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
@@ -70,6 +80,7 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
 
     // Load configurations on mount
     loadStripeConfig();
+    loadSquareConfig();
     loadSubscription();
   }, [userInfo]);
 
@@ -85,6 +96,23 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
       }
     } catch (err) {
       console.error('Failed to load Stripe config:', err);
+    }
+  };
+
+  const loadSquareConfig = async () => {
+    try {
+      const response = await apiService.get('/account/square');
+      if (response.hasSquareConfig !== undefined) {
+        setSquareForm({
+          applicationId: response.applicationId || '',
+          locationId: response.locationId || '',
+          accessToken: '', // Never load access token for security
+          environment: response.environment || 'sandbox',
+        });
+        setHasSquareConfig(response.hasSquareConfig);
+      }
+    } catch (err) {
+      console.error('Failed to load Square config:', err);
     }
   };
 
@@ -179,11 +207,33 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
     }
   };
 
+  const handleSquareSave = async () => {
+    setIsLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await apiService.put('/account/square', {
+        applicationId: squareForm.applicationId,
+        locationId: squareForm.locationId,
+        accessToken: squareForm.accessToken,
+        environment: squareForm.environment,
+      });
+      setSuccess('Square configuration saved successfully!');
+      setHasSquareConfig(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save Square configuration');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const tabs = [
     { id: 'profile' as const, label: 'Profile', icon: <User size={20} /> },
     { id: 'security' as const, label: 'Security', icon: <Key size={20} /> },
     { id: 'subscription' as const, label: 'Subscription', icon: <Crown size={20} /> },
     { id: 'payment' as const, label: 'Stripe Settings', icon: <CreditCard size={20} /> },
+    { id: 'square' as const, label: 'Square Settings', icon: <CreditCard size={20} /> },
   ];
 
   return (
@@ -925,6 +975,182 @@ const AccountSettingsPage: React.FC<AccountSettingsPageProps> = ({ userInfo, onU
                 >
                   <Save size={20} />
                   {isLoading ? 'Saving...' : 'Save Stripe Configuration'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'square' && (
+            <div
+              className={`rounded-xl p-6 border ${isDark ? 'bg-charcoal-slate border-champagne-gold/10' : 'bg-white border-gray-200'}`}
+            >
+              <h3 className={`text-xl font-semibold mb-6 ${isDark ? 'text-platinum-silver' : 'text-gray-900'}`}>
+                Square Configuration
+              </h3>
+
+              <div
+                className={`mb-6 p-4 rounded-lg border ${
+                  isDark ? 'bg-obsidian-black border-champagne-gold/20' : 'bg-blue-50 border-blue-200'
+                }`}
+              >
+                <h4 className={`font-semibold mb-2 ${isDark ? 'text-champagne-gold' : 'text-blue-600'}`}>
+                  Why do I need to configure Square?
+                </h4>
+                <p className={`text-sm leading-relaxed ${isDark ? 'text-platinum-silver/70' : 'text-gray-600'}`}>
+                  To process payments and charges through Square, you need to connect your Square account. This ensures
+                  your payments go directly to you and provides secure integration with Square's payment platform.
+                </p>
+              </div>
+
+              {hasSquareConfig && (
+                <div
+                  className={`mb-6 p-4 rounded-lg border ${
+                    isDark ? 'bg-money-green/10 border-money-green/20' : 'bg-green-50 border-green-200'
+                  }`}
+                >
+                  <div className='flex items-center gap-2'>
+                    <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-money-green' : 'bg-green-600'}`}></div>
+                    <span className={`font-medium ${isDark ? 'text-money-green' : 'text-green-600'}`}>
+                      Square configured successfully
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className='space-y-6'>
+                <div>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    Square Application ID
+                  </label>
+                  <input
+                    type='text'
+                    value={squareForm.applicationId}
+                    onChange={(e) => setSquareForm({ ...squareForm, applicationId: e.target.value })}
+                    className={`w-full px-4 py-3 border rounded-lg transition-colors focus:outline-none ${
+                      isDark
+                        ? 'bg-obsidian-black border-champagne-gold/20 text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold'
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                    }`}
+                    placeholder='sandbox-sq0...'
+                  />
+                  <p className={`text-xs mt-1 ${isDark ? 'text-platinum-silver/60' : 'text-gray-500'}`}>
+                    Your Square Application ID from the Developer Dashboard
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    Square Location ID
+                  </label>
+                  <input
+                    type='text'
+                    value={squareForm.locationId}
+                    onChange={(e) => setSquareForm({ ...squareForm, locationId: e.target.value })}
+                    className={`w-full px-4 py-3 border rounded-lg transition-colors focus:outline-none ${
+                      isDark
+                        ? 'bg-obsidian-black border-champagne-gold/20 text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold'
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                    }`}
+                    placeholder='LXXXXXXXXXXXXX'
+                  />
+                  <p className={`text-xs mt-1 ${isDark ? 'text-platinum-silver/60' : 'text-gray-500'}`}>
+                    Your Square Location ID for this business location
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    Square Access Token
+                  </label>
+                  <div className='relative'>
+                    <input
+                      type={showSquareAccessToken ? 'text' : 'password'}
+                      value={squareForm.accessToken}
+                      onChange={(e) => setSquareForm({ ...squareForm, accessToken: e.target.value })}
+                      className={`w-full px-4 py-3 border rounded-lg transition-colors focus:outline-none pr-12 ${
+                        isDark
+                          ? 'bg-obsidian-black border-champagne-gold/20 text-platinum-silver placeholder-platinum-silver/40 focus:border-champagne-gold'
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:border-blue-500'
+                      }`}
+                      placeholder='EAAAl...'
+                    />
+                    <button
+                      type='button'
+                      onClick={() => setShowSquareAccessToken(!showSquareAccessToken)}
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 transition-colors ${
+                        isDark
+                          ? 'text-platinum-silver/60 hover:text-platinum-silver'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {showSquareAccessToken ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-platinum-silver/60' : 'text-gray-500'}`}>
+                    Your Square Access Token - stored encrypted
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    className={`block text-sm font-medium mb-2 ${isDark ? 'text-platinum-silver/80' : 'text-gray-700'}`}
+                  >
+                    Environment
+                  </label>
+                  <select
+                    value={squareForm.environment}
+                    onChange={(e) =>
+                      setSquareForm({ ...squareForm, environment: e.target.value as 'sandbox' | 'production' })
+                    }
+                    className={`w-full px-4 py-3 border rounded-lg transition-colors focus:outline-none ${
+                      isDark
+                        ? 'bg-obsidian-black border-champagne-gold/20 text-platinum-silver focus:border-champagne-gold'
+                        : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                    }`}
+                  >
+                    <option value='sandbox'>Sandbox (Testing)</option>
+                    <option value='production'>Production (Live)</option>
+                  </select>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-platinum-silver/60' : 'text-gray-500'}`}>
+                    Use Sandbox for testing, Production for live payments
+                  </p>
+                </div>
+
+                <div
+                  className={`p-4 rounded-lg border ${
+                    isDark ? 'bg-obsidian-black border-champagne-gold/20' : 'bg-yellow-50 border-yellow-200'
+                  }`}
+                >
+                  <h4 className={`font-semibold mb-2 text-sm ${isDark ? 'text-champagne-gold' : 'text-yellow-600'}`}>
+                    How to get your Square credentials:
+                  </h4>
+                  <ol
+                    className={`text-xs space-y-1 list-decimal list-inside ${isDark ? 'text-platinum-silver/70' : 'text-gray-600'}`}
+                  >
+                    <li>Log in to your Square Developer Dashboard</li>
+                    <li>Create or select your application</li>
+                    <li>Copy your Application ID, Location ID, and Access Token</li>
+                    <li>Use Sandbox credentials for testing, Production for live payments</li>
+                  </ol>
+                </div>
+
+                <button
+                  onClick={handleSquareSave}
+                  disabled={isLoading || !squareForm.applicationId || !squareForm.locationId || !squareForm.accessToken}
+                  className={`flex items-center gap-2 font-bold py-3 px-6 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isDark
+                      ? 'bg-champagne-gold text-obsidian-black hover:bg-opacity-90'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  <Save size={20} />
+                  {isLoading ? 'Saving...' : 'Save Square Configuration'}
                 </button>
               </div>
             </div>

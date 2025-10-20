@@ -366,7 +366,7 @@ const InvoiceList: React.FC<InvoiceListProps> = ({
                         e.stopPropagation();
                         setSelectedInvoiceForCharge(invoice);
                       }}
-                      className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-sm font-medium transition-all duration-200 flex-shrink-0 ${
                         isDark
                           ? 'bg-green-600 text-white hover:bg-green-700'
                           : 'bg-green-600 text-white hover:bg-green-700'
@@ -383,14 +383,14 @@ const InvoiceList: React.FC<InvoiceListProps> = ({
                       e.stopPropagation();
                       onViewDetails(invoice);
                     }}
-                    className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium border transition-all duration-200 ${
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-sm font-medium border transition-all duration-200 ${
                       isDark
                         ? 'border-champagne-gold/30 text-champagne-gold hover:bg-champagne-gold/10'
                         : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                     }`}
                   >
                     <Eye size={14} />
-                    View
+                    <span>View</span>
                   </button>
                 </div>
               </div>

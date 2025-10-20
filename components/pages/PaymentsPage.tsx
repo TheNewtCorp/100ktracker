@@ -82,6 +82,43 @@ const PaymentsPage: React.FC<PaymentsPageProps> = () => {
     }
   };
 
+  const handleNotesUpdate = async (invoiceId: number, notes: string) => {
+    try {
+      setError(null);
+      // Use the current status with new notes
+      const currentStatus = selectedInvoice?.status || InvoiceStatus.Created;
+      await apiService.put(`/invoices/${invoiceId}/status`, { status: currentStatus, notes });
+      await loadInvoices(); // Reload to get updated invoice
+
+      // If viewing details of this invoice, update the selected invoice too
+      if (selectedInvoice && selectedInvoice.id === invoiceId) {
+        setSelectedInvoice((prev) => (prev ? { ...prev, notes } : null));
+      }
+    } catch (err: any) {
+      console.error('Error updating invoice notes:', err);
+      setError(err.message || 'Failed to update invoice notes');
+      throw err;
+    }
+  };
+
+  const handleVoidInvoice = async (invoiceId: number) => {
+    try {
+      setError(null);
+      await apiService.delete(`/invoices/${invoiceId}`);
+      await loadInvoices(); // Reload to get updated status
+
+      // If viewing details of this invoice, go back to list since it's voided
+      if (selectedInvoice && selectedInvoice.id === invoiceId) {
+        setCurrentView('list');
+        setSelectedInvoice(null);
+      }
+    } catch (err: any) {
+      console.error('Error voiding invoice:', err);
+      setError(err.message || 'Failed to void invoice');
+      throw err;
+    }
+  };
+
   const handlePaymentSuccess = async (invoiceId: number, paymentId: string) => {
     try {
       setError(null);
@@ -122,8 +159,7 @@ const PaymentsPage: React.FC<PaymentsPageProps> = () => {
             <InvoiceDetails
               invoice={selectedInvoice}
               onBack={() => setCurrentView('list')}
-              onSend={(invoiceId) => handleStatusUpdate(invoiceId, InvoiceStatus.Sent)}
-              onVoid={(invoiceId) => handleStatusUpdate(invoiceId, InvoiceStatus.Cancelled)}
+              onVoid={handleVoidInvoice}
               error={error}
             />
             <InvoiceStatusTracker
@@ -131,6 +167,7 @@ const PaymentsPage: React.FC<PaymentsPageProps> = () => {
               onStatusUpdate={(newStatus: InvoiceStatus, notes?: string) =>
                 handleStatusUpdate(selectedInvoice.id, newStatus)
               }
+              onNotesUpdate={(notes: string) => handleNotesUpdate(selectedInvoice.id, notes)}
             />
           </div>
         ) : (

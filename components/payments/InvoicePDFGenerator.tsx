@@ -3,7 +3,7 @@ import { Download, FileText, Loader2 } from 'lucide-react';
 import { Invoice, InvoicePDFOptions } from '../../types';
 import { useTheme } from '../../hooks/useTheme';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 interface InvoicePDFGeneratorProps {
   invoice: Invoice;
@@ -130,7 +130,7 @@ const InvoicePDFGenerator: React.FC<InvoicePDFGeneratorProps> = ({ invoice, onPD
         ]) || [];
 
       // Using jsPDF autoTable for better table formatting
-      (pdf as any).autoTable({
+      autoTable(pdf, {
         startY: yPosition,
         head: [['Description', 'Qty', 'Unit Price', 'Total']],
         body: tableData,
@@ -147,7 +147,7 @@ const InvoicePDFGenerator: React.FC<InvoicePDFGeneratorProps> = ({ invoice, onPD
       });
 
       // Total
-      const finalY = (pdf as any).lastAutoTable.finalY + 20;
+      const finalY = (pdf as any).lastAutoTable?.finalY + 20 || yPosition + 50;
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'bold');
 

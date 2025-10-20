@@ -48,46 +48,108 @@ declare global {
   }
 }
 
-// Square configuration for frontend
-export const SQUARE_CONFIG = {
-  applicationId:
-    import.meta.env.VITE_SQUARE_APPLICATION_ID ||
-    (() => {
-      console.error('❌ VITE_SQUARE_APPLICATION_ID environment variable is required');
-      console.error('Available env vars:', {
-        NODE_ENV: import.meta.env.NODE_ENV,
-        MODE: import.meta.env.MODE,
-        VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
-        envVars: Object.keys(import.meta.env).filter((key) => key.startsWith('VITE_')),
-      });
-      return 'MISSING_SQUARE_APP_ID';
-    })(),
-  locationId:
-    import.meta.env.VITE_SQUARE_LOCATION_ID ||
-    (() => {
-      console.error('❌ VITE_SQUARE_LOCATION_ID environment variable is required');
-      return 'MISSING_SQUARE_LOCATION_ID';
-    })(),
-  environment: (import.meta.env.VITE_SQUARE_ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
+// User Square configuration from account settings
+export interface UserSquareConfig {
+  applicationId: string;
+  locationId: string;
+  environment: 'sandbox' | 'production';
+}
+
+// Context type for Square configuration
+export type SquareConfigContext = 'landing' | 'user';
+
+// Square configuration for different contexts
+export interface SquareConfigOptions {
+  context: SquareConfigContext;
+  userConfig?: UserSquareConfig;
+}
+
+// Get Square configuration based on context
+export const getSquareConfig = (options: SquareConfigOptions) => {
+  const { context, userConfig } = options;
+
+  if (context === 'landing') {
+    // Use environment variables for landing page
+    return {
+      applicationId:
+        import.meta.env.VITE_SQUARE_APPLICATION_ID ||
+        (() => {
+          console.error('❌ VITE_SQUARE_APPLICATION_ID environment variable is required for landing page');
+          return 'your_square_app_id_here';
+        })(),
+      locationId:
+        import.meta.env.VITE_SQUARE_LOCATION_ID ||
+        (() => {
+          console.error('❌ VITE_SQUARE_LOCATION_ID environment variable is required for landing page');
+          return 'your_square_location_id_here';
+        })(),
+      environment: (import.meta.env.VITE_SQUARE_ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
+    };
+  } else if (context === 'user') {
+    // Use user's Square credentials from account settings
+    if (!userConfig) {
+      throw new Error('User Square configuration is required for user context');
+    }
+
+    if (!userConfig.applicationId || !userConfig.locationId) {
+      throw new Error(
+        'User Square configuration is incomplete. Please configure your Square API keys in Account Settings.',
+      );
+    }
+
+    return {
+      applicationId: userConfig.applicationId,
+      locationId: userConfig.locationId,
+      environment: userConfig.environment || 'sandbox',
+    };
+  } else {
+    throw new Error(`Unknown Square configuration context: ${context}`);
+  }
 };
 
-// Square SDK script URL
-const SQUARE_SDK_URL =
-  SQUARE_CONFIG.environment === 'production'
-    ? 'https://web.squarecdn.com/v1/square.js'
-    : 'https://sandbox.web.squarecdn.com/v1/square.js';
+// Legacy SQUARE_CONFIG for backward compatibility (landing page context)
+export const SQUARE_CONFIG = getSquareConfig({ context: 'landing' });
 
-// Load Square SDK dynamically
-export const loadSquareSDK = (): Promise<SquarePayments> => {
+// Load Square SDK dynamically with context-aware configuration
+export const loadSquareSDK = (options?: SquareConfigOptions): Promise<SquarePayments> => {
   return new Promise((resolve, reject) => {
+    // Use provided options or default to landing context
+    const configOptions = options || { context: 'landing' };
+
+    let squareConfig;
+    try {
+      squareConfig = getSquareConfig(configOptions);
+    } catch (error) {
+      console.error('❌ Square configuration error:', error);
+      reject(error);
+      return;
+    }
+
+    const sdkUrl =
+      squareConfig.environment === 'production'
+        ? 'https://web.squarecdn.com/v1/square.js'
+        : 'https://sandbox.web.squarecdn.com/v1/square.js';
+
     console.log('🔄 Loading Square SDK...', {
-      config: SQUARE_CONFIG,
-      sdkUrl: SQUARE_SDK_URL,
+      context: configOptions.context,
+      config: {
+        applicationId: squareConfig.applicationId,
+        locationId: squareConfig.locationId,
+        environment: squareConfig.environment,
+      },
+      sdkUrl: sdkUrl,
     });
 
     // Validate required configuration
-    if (SQUARE_CONFIG.applicationId.includes('MISSING') || SQUARE_CONFIG.locationId.includes('MISSING')) {
-      const error = new Error('Square configuration is incomplete. Please check your environment variables.');
+    if (
+      squareConfig.applicationId.includes('MISSING') ||
+      squareConfig.applicationId.includes('your_square_app_id_here') ||
+      squareConfig.locationId.includes('MISSING') ||
+      squareConfig.locationId.includes('your_square_location_id_here')
+    ) {
+      const error = new Error(
+        `Square configuration is incomplete for ${configOptions.context} context. Please check your configuration.`,
+      );
       console.error('❌ Square configuration validation failed:', error);
       reject(error);
       return;
@@ -97,7 +159,7 @@ export const loadSquareSDK = (): Promise<SquarePayments> => {
     if (window.Square) {
       console.log('✅ Square SDK already loaded, initializing payments...');
       try {
-        const payments = window.Square.payments(SQUARE_CONFIG.applicationId, SQUARE_CONFIG.locationId);
+        const payments = window.Square.payments(squareConfig.applicationId, squareConfig.locationId);
         console.log('✅ Square payments initialized successfully');
         resolve(payments);
       } catch (error) {
@@ -107,11 +169,11 @@ export const loadSquareSDK = (): Promise<SquarePayments> => {
       return;
     }
 
-    console.log('📦 Loading Square SDK from:', SQUARE_SDK_URL);
+    console.log('📦 Loading Square SDK from:', sdkUrl);
 
     // Create script element
     const script = document.createElement('script');
-    script.src = SQUARE_SDK_URL;
+    script.src = sdkUrl;
     script.async = true;
 
     script.onload = () => {
@@ -119,7 +181,7 @@ export const loadSquareSDK = (): Promise<SquarePayments> => {
       try {
         if (window.Square) {
           console.log('🔧 Initializing Square payments...');
-          const payments = window.Square.payments(SQUARE_CONFIG.applicationId, SQUARE_CONFIG.locationId);
+          const payments = window.Square.payments(squareConfig.applicationId, squareConfig.locationId);
           console.log('✅ Square payments initialized successfully');
           resolve(payments);
         } else {

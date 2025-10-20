@@ -231,6 +231,141 @@ router.delete('/stripe', authenticateJWT, async (req, res) => {
   }
 });
 
+// ========== SQUARE ENDPOINTS ==========
+
+// Get Square configuration
+router.get('/square', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    let currentDb = getDb();
+    if (!currentDb) {
+      await initDB();
+      currentDb = getDb();
+      if (!currentDb) {
+        return res.status(500).json({ error: 'Database connection failed' });
+      }
+    }
+
+    const user = await new Promise((resolve, reject) => {
+      currentDb.get(
+        'SELECT square_application_id, square_location_id, square_access_token, square_environment FROM users WHERE id = ?',
+        [userId],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        },
+      );
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const hasSquareConfig = !!(user?.square_application_id && user?.square_location_id);
+
+    res.json({
+      hasSquareConfig,
+      applicationId: user?.square_application_id || '',
+      locationId: user?.square_location_id || '',
+      environment: user?.square_environment || 'sandbox',
+      accessTokenConfigured: !!user?.square_access_token,
+    });
+  } catch (error) {
+    console.error('Error fetching Square config:', error);
+    res.status(500).json({ error: 'Failed to fetch Square configuration' });
+  }
+});
+
+// Update Square configuration
+router.put('/square', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { applicationId, locationId, accessToken, environment = 'sandbox' } = req.body;
+
+    // Validate required fields
+    if (!applicationId || !locationId) {
+      return res.status(400).json({ error: 'Application ID and Location ID are required' });
+    }
+
+    // Basic validation for Square key formats
+    if (applicationId && !applicationId.startsWith('sq0idp-') && !applicationId.startsWith('sandbox-sq0idb-')) {
+      return res.status(400).json({
+        error:
+          'Invalid Square Application ID format. Should start with sq0idp- (production) or sandbox-sq0idb- (sandbox)',
+      });
+    }
+
+    if (accessToken && !accessToken.startsWith('EAA') && !accessToken.startsWith('EAAA')) {
+      return res.status(400).json({
+        error: 'Invalid Square Access Token format. Should start with EAA',
+      });
+    }
+
+    if (!['sandbox', 'production'].includes(environment)) {
+      return res.status(400).json({ error: 'Environment must be either sandbox or production' });
+    }
+
+    let currentDb = getDb();
+    if (!currentDb) {
+      await initDB();
+      currentDb = getDb();
+      if (!currentDb) {
+        return res.status(500).json({ error: 'Database connection failed' });
+      }
+    }
+
+    // Update Square configuration
+    await new Promise((resolve, reject) => {
+      currentDb.run(
+        'UPDATE users SET square_application_id = ?, square_location_id = ?, square_access_token = ?, square_environment = ? WHERE id = ?',
+        [applicationId, locationId, accessToken || null, environment, userId],
+        function (err) {
+          if (err) reject(err);
+          else resolve();
+        },
+      );
+    });
+
+    res.json({ message: 'Square configuration updated successfully' });
+  } catch (error) {
+    console.error('Error updating Square config:', error);
+    res.status(500).json({ error: 'Failed to update Square configuration' });
+  }
+});
+
+// Clear Square configuration
+router.delete('/square', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    let currentDb = getDb();
+    if (!currentDb) {
+      await initDB();
+      currentDb = getDb();
+      if (!currentDb) {
+        return res.status(500).json({ error: 'Database connection failed' });
+      }
+    }
+
+    await new Promise((resolve, reject) => {
+      currentDb.run(
+        "UPDATE users SET square_application_id = NULL, square_location_id = NULL, square_access_token = NULL, square_environment = 'sandbox' WHERE id = ?",
+        [userId],
+        function (err) {
+          if (err) reject(err);
+          else resolve();
+        },
+      );
+    });
+
+    res.json({ message: 'Square configuration cleared successfully' });
+  } catch (error) {
+    console.error('Error clearing Square config:', error);
+    res.status(500).json({ error: 'Failed to clear Square configuration' });
+  }
+});
+
 // ========== SUBSCRIPTION ENDPOINTS ==========
 
 // Get user subscription information

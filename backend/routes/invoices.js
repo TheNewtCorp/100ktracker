@@ -2,7 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { db, getDb, initDB } = require('../db');
 const { authenticateJWT } = require('../middleware');
-const { client, SQUARE_CONFIG, paymentsApi, customersApi, ordersApi } = require('../square-config');
+const { SquareClient } = require('square');
 const crypto = require('crypto');
 
 const router = express.Router();
@@ -27,6 +27,45 @@ async function getInitializedDb() {
     }
   }
   return currentDb;
+}
+
+// Helper function to get user's Square configuration and create client
+async function getUserSquareClient(userId) {
+  const currentDb = await getInitializedDb();
+
+  const user = await new Promise((resolve, reject) => {
+    currentDb.get(
+      'SELECT square_application_id, square_location_id, square_access_token, square_environment FROM users WHERE id = ?',
+      [userId],
+      (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      },
+    );
+  });
+
+  if (!user || !user.square_access_token || !user.square_application_id || !user.square_location_id) {
+    throw new Error('Square configuration not found. Please configure Square in Account Settings.');
+  }
+
+  // Create Square client with user's credentials
+  const client = new SquareClient({
+    token: user.square_access_token,
+    environment: user.square_environment === 'production' ? 'production' : 'sandbox',
+  });
+
+  return {
+    client,
+    config: {
+      applicationId: user.square_application_id,
+      locationId: user.square_location_id,
+      environment: user.square_environment || 'sandbox',
+      accessToken: user.square_access_token,
+    },
+    paymentsApi: client.payments,
+    customersApi: client.customers,
+    ordersApi: client.orders,
+  };
 }
 
 // Database wrapper functions with proper initialization
@@ -63,6 +102,12 @@ async function dbRun(query, params) {
 // Helper function to map status between frontend enum and database values
 function mapStatusToDb(frontendStatus) {
   const statusMap = {
+    created: 'draft',
+    sent: 'open',
+    fulfilled: 'paid',
+    overdue: 'overdue',
+    cancelled: 'void',
+    // Legacy support for capitalized values
     Created: 'draft',
     Sent: 'open',
     Fulfilled: 'paid',
@@ -74,11 +119,11 @@ function mapStatusToDb(frontendStatus) {
 
 function mapStatusFromDb(dbStatus) {
   const statusMap = {
-    draft: 'Created',
-    open: 'Sent',
-    paid: 'Fulfilled',
-    overdue: 'Overdue',
-    void: 'Cancelled',
+    draft: 'created',
+    open: 'sent',
+    paid: 'fulfilled',
+    overdue: 'overdue',
+    void: 'cancelled',
   };
   return statusMap[dbStatus] || dbStatus;
 }
@@ -109,7 +154,7 @@ router.get('/', authenticateJWT, async (req, res) => {
         c.last_name as contact_last_name,
         c.email as contact_email,
         c.phone as contact_phone,
-        c.company as contact_company
+        c.business_name as contact_company
       FROM user_invoices i
       LEFT JOIN user_contacts c ON i.contact_id = c.id
       WHERE i.user_id = ?
@@ -137,15 +182,16 @@ router.get('/', authenticateJWT, async (req, res) => {
           : null,
       contact_email: invoice.contact_email,
       contact_phone: invoice.contact_phone,
-      // Customer info for new system
+      // Customer info for new system (prioritize stored customer data over contact data)
       customer_info: {
         name:
-          invoice.contact_first_name && invoice.contact_last_name
+          invoice.customer_name ||
+          (invoice.contact_first_name && invoice.contact_last_name
             ? `${invoice.contact_first_name} ${invoice.contact_last_name}`
-            : 'Manual Customer',
-        email: invoice.contact_email,
-        phone: invoice.contact_phone,
-        company: invoice.contact_company,
+            : 'Unknown Customer'),
+        email: invoice.customer_email || invoice.contact_email,
+        phone: invoice.customer_phone || invoice.contact_phone,
+        company: invoice.customer_company || invoice.contact_company,
       },
       // Payment processing info
       payment_processor: invoice.payment_processor || 'square',
@@ -186,7 +232,7 @@ router.get('/:id', authenticateJWT, async (req, res) => {
         c.last_name as contact_last_name,
         c.email as contact_email,
         c.phone as contact_phone,
-        c.company as contact_company
+        c.business_name as contact_company
       FROM user_invoices i
       LEFT JOIN user_contacts c ON i.contact_id = c.id
       WHERE i.id = ? AND i.user_id = ?
@@ -205,7 +251,7 @@ router.get('/:id', authenticateJWT, async (req, res) => {
         ii.*,
         w.brand as watch_brand,
         w.model as watch_model,
-        w.reference as watch_reference
+        w.reference_number as watch_reference
       FROM user_invoice_items ii
       LEFT JOIN user_watches w ON ii.watch_id = w.id
       WHERE ii.invoice_id = ? AND ii.user_id = ?
@@ -230,18 +276,19 @@ router.get('/:id', authenticateJWT, async (req, res) => {
       contact_name:
         invoice.contact_first_name && invoice.contact_last_name
           ? `${invoice.contact_first_name} ${invoice.contact_last_name}`
-          : null,
-      contact_email: invoice.contact_email,
-      contact_phone: invoice.contact_phone,
-      // Customer info for new system
+          : invoice.customer_name || null,
+      contact_email: invoice.contact_email || invoice.customer_email,
+      contact_phone: invoice.contact_phone || invoice.customer_phone,
+      // Customer info for new system (prioritize stored customer data over contact data)
       customer_info: {
         name:
-          invoice.contact_first_name && invoice.contact_last_name
+          invoice.customer_name ||
+          (invoice.contact_first_name && invoice.contact_last_name
             ? `${invoice.contact_first_name} ${invoice.contact_last_name}`
-            : 'Manual Customer',
-        email: invoice.contact_email,
-        phone: invoice.contact_phone,
-        company: invoice.contact_company,
+            : 'Unknown Customer'),
+        email: invoice.customer_email || invoice.contact_email,
+        phone: invoice.customer_phone || invoice.contact_phone,
+        company: invoice.customer_company || invoice.contact_company,
       },
       // Payment processing info
       payment_processor: invoice.payment_processor || 'square',
@@ -319,8 +366,8 @@ router.post(
         `
       INSERT INTO user_invoices (
         user_id, contact_id, status, total_amount, currency, 
-        due_date, notes, payment_processor
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        due_date, notes, payment_processor, customer_name, customer_email, customer_phone
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
         [
           userId,
@@ -331,6 +378,9 @@ router.post(
           due_date || null,
           notes || '',
           'square',
+          customer_info.name,
+          customer_info.email,
+          customer_info.phone || null,
         ],
       );
 
@@ -408,8 +458,19 @@ router.put(
   '/:id/status',
   [
     body('status')
-      .isIn(['Created', 'Sent', 'Fulfilled', 'Overdue', 'Cancelled'])
-      .withMessage('Invalid status. Must be one of: Created, Sent, Fulfilled, Overdue, Cancelled'),
+      .isIn([
+        'created',
+        'sent',
+        'fulfilled',
+        'overdue',
+        'cancelled',
+        'Created',
+        'Sent',
+        'Fulfilled',
+        'Overdue',
+        'Cancelled',
+      ])
+      .withMessage('Invalid status. Must be one of: created, sent, fulfilled, overdue, cancelled'),
     body('notes').optional().isString().withMessage('Notes must be a string'),
   ],
   authenticateJWT,
@@ -486,7 +547,18 @@ router.post(
     body('payment_id').notEmpty().withMessage('Payment ID is required'),
     body('status')
       .optional()
-      .isIn(['Created', 'Sent', 'Fulfilled', 'Overdue', 'Cancelled'])
+      .isIn([
+        'created',
+        'sent',
+        'fulfilled',
+        'overdue',
+        'cancelled',
+        'Created',
+        'Sent',
+        'Fulfilled',
+        'Overdue',
+        'Cancelled',
+      ])
       .withMessage('Invalid status'),
   ],
   authenticateJWT,
@@ -577,6 +649,9 @@ router.post(
       const invoiceId = req.params.id;
       const { payment_token, customer_info, idempotency_key } = req.body;
 
+      // Get user's Square client
+      const { customersApi, paymentsApi, config } = await getUserSquareClient(userId);
+
       // Get invoice
       const invoice = await dbGet('SELECT * FROM user_invoices WHERE id = ? AND user_id = ?', [invoiceId, userId]);
 
@@ -624,7 +699,7 @@ router.post(
             currency: 'USD',
           },
           autocomplete: true,
-          locationId: process.env.SQUARE_LOCATION_ID,
+          locationId: config.locationId,
           note: `Payment for Invoice INV-${String(invoice.id).padStart(6, '0')}`,
           buyerEmailAddress: customer_info.email,
         };
